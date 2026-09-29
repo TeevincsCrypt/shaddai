@@ -149,6 +149,21 @@ export function createApp(deps: AppDeps) {
         scannedFrom: snap.scannedFrom?.toString(),
         scannedTo: snap.scannedTo?.toString(),
         events: snap.decoded.length,
+        // Per source, and where the earliest one sits: an index that starts too late misses history.
+        bySource: {
+          bep677: snap.decoded.filter((d) => d.layout !== 'ondo-svalue').length,
+          ondoSValue: snap.decoded.filter((d) => d.layout === 'ondo-svalue').length,
+        },
+        firstEventBlock: snap.decoded.length
+          ? snap.decoded
+              .reduce((m, d) => (d.blockNumber < m ? d.blockNumber : m), snap.decoded[0]!.blockNumber)
+              .toString()
+          : null,
+        firstOndoEventBlock:
+          snap.decoded
+            .filter((d) => d.layout === 'ondo-svalue')
+            .reduce<bigint | null>((m, d) => (m === null || d.blockNumber < m ? d.blockNumber : m), null)
+            ?.toString() ?? null,
       },
       rpc,
       stats: ctx.chain.stats,

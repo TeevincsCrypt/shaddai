@@ -88,9 +88,11 @@ exact historical read instead of a log replay.
 
 ### `SHADDAI_SCAN_FROM_BLOCK` (optional)
 
-Where the multiplier-event index starts. The first bStocks were deployed at block **102,441,229** (5 Jun 2026), so
-`102441000` covers everything in the built-in registry and skips about 6.8M empty blocks. Unset, the index starts at
-`SHADDAI_SCAN_FROM_DATE` (default `2026-05-01`), which only makes the first scan longer.
+Where the multiplier-event index starts. The first bStocks were deployed at block **102,441,229** (5 Jun 2026), but
+the index also records Ondo sValue updates, and Ondo's oracle can be older than that. So leave this unset: the index
+then starts at `SHADDAI_SCAN_FROM_DATE` (default `2026-05-01`, block 95.6M). `/api/status` shows `firstEventBlock` and
+`firstOndoEventBlock`; if the first Ondo event sits right at `scannedFrom`, move the date earlier. Set a block only if
+it is below both.
 
 If you add older tokens through `SHADDAI_EXTRA_TOKENS`, find each one's creation block on BscScan: open the token's
 address page, click the transaction next to **Contract Creator**, and copy its **Block**. Use the smallest. Registry
