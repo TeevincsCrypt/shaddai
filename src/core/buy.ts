@@ -71,6 +71,7 @@ export const BUY_COPY = {
   xstocksUnread: 'Display factor not on this token — do not invent it.',
   bstockUnread: 'uiMultiplier() did not answer — share-equivalents unknown, so this wrapper is not quoted.',
   noRoute: 'No route returned for this pair.',
+  noPool: 'No PancakeSwap V2 pool pairs this token with the pay-in token, so there is nothing to price on chain.',
   compliance:
     'Binance declined to quote for compliance reasons (code 40304). It limits tokenized-stock services by jurisdiction, and the location of the server calling it counts.',
   depthUnknown:
@@ -135,6 +136,10 @@ export interface BuyQuote {
   rawCountPick: Address | null;
   notes: string[];
   api: string;
+  /** Quote from a source that cannot trade (on-chain pools). */
+  quoteOnly: boolean;
+  /** On-chain comparison, attached when the Binance Web3 API refused every wrapper. */
+  fallback?: BuyQuote | null;
 }
 
 export function requireBuy(ctx: ShaddaiContext): BuyConfig {
@@ -246,17 +251,25 @@ export async function quoteShareTrueBuy(ctx: ShaddaiContext, input: QuoteInput):
 
   const [probes, rwa, marks] = await Promise.all([
     probeTokens(ctx.chain, wrappers, null, head, hdr.timestamp, { ondoOracle: ctx.ondoOracle }),
-    cfg.api
-      .rwaTokens()
-      .then((list) => ({ ok: true as const, list }))
-      .catch((e: Error) => ({ ok: false as const, error: e.message })),
+    cfg.api.quoteOnly
+      ? { ok: false as const, error: 'on-chain mode' }
+      : cfg.api
+          .rwaTokens()
+          .then((list) => ({ ok: true as const, list }))
+          .catch((e: Error) => ({ ok: false as const, error: e.message })),
     ctx.prices.quote(wrappers.map((w) => w.address)).catch(() => null),
   ]);
 
   const notes: string[] = [];
-  if (!rwa.ok)
+  if (cfg.api.quoteOnly) {
+    notes.push(
+      'On-chain pool quote: a comparison only, nothing can be bought through it. Market hours are not read and the reference price is the DEX mark.',
+    );
+  } else if (!rwa.ok)
     notes.push(`Binance RWA data not read (${rwa.error}): market status and reference price come from DEX marks.`);
-  if (!wallet) {
+  if (cfg.api.quoteOnly) {
+    // Pool reserves do not depend on who asks.
+  } else if (!wallet) {
     notes.push('No wallet given: RFQ quotes for equity tokens may need one. Connect a wallet to quote as yourself.');
   } else if (!callerWallet) {
     notes.push('Quoted with the server quote wallet; connect your wallet before buying.');
@@ -392,7 +405,7 @@ export async function quoteShareTrueBuy(ctx: ShaddaiContext, input: QuoteInput):
     }
     const route = bestRoute(full);
     if (!route || route.toAmount <= 0n) {
-      refuse(BUY_COPY.noRoute);
+      refuse(cfg.api.quoteOnly ? BUY_COPY.noPool : BUY_COPY.noRoute);
       return q;
     }
     q.route = {
@@ -425,7 +438,8 @@ export async function quoteShareTrueBuy(ctx: ShaddaiContext, input: QuoteInput):
     if (q.impactPct > cfg.maxImpactPct) {
       refuse(`Thin book: a $${usd} ticket moves the price ${q.impactPct.toFixed(2)}% (limit ${cfg.maxImpactPct}%).`);
     }
-    if (route.executionMode !== 'RFQ') q.notes.push(`Route type ${route.executionMode}, not RFQ.`);
+    if (route.executionMode !== 'RFQ' && !cfg.api.quoteOnly)
+      q.notes.push(`Route type ${route.executionMode}, not RFQ.`);
     return q;
   };
 
@@ -462,7 +476,28 @@ export async function quoteShareTrueBuy(ctx: ShaddaiContext, input: QuoteInput):
     rawCountPick,
     notes,
     api: cfg.api.label,
+    quoteOnly: Boolean(cfg.api.quoteOnly),
   };
+}
+
+/**
+ * The Buy tab's quote. With no Binance key, it quotes from on-chain pools (comparison only). When Binance
+ * refuses every wrapper for compliance reasons, the on-chain comparison is attached as `fallback`.
+ */
+export async function quoteWithFallback(ctx: ShaddaiContext, input: QuoteInput): Promise<BuyQuote> {
+  const fb = ctx.buyFallback;
+  if (!ctx.buy) {
+    if (!fb) requireBuy(ctx);
+    const q = await quoteShareTrueBuy({ ...ctx, buy: fb }, input);
+    q.notes.unshift('Buy is not switched on here (no Binance Web3 API key).');
+    return q;
+  }
+  const q = await quoteShareTrueBuy(ctx, input);
+  const blocked = !q.best && q.wrappers.some((w) => w.reasons.includes(BUY_COPY.compliance));
+  if (fb && blocked) {
+    q.fallback = await quoteShareTrueBuy({ ...ctx, buy: { ...ctx.buy, api: fb.api } }, input).catch(() => null);
+  }
+  return q;
 }
 
 // ---------------------------------------------------------------------------
@@ -582,6 +617,9 @@ export interface PrepareInput {
 
 export async function prepareBuy(ctx: ShaddaiContext, input: PrepareInput): Promise<PrepareResult> {
   const cfg = requireBuy(ctx);
+  if (cfg.api.quoteOnly) {
+    throw new BuyError('On-chain pool quotes are a comparison only; buying needs the Binance Web3 API.', 422);
+  }
   const wallet = parseWallet(input.wallet);
   if (!isAddress(input.token, { strict: false })) throw new BuyError('Token is not an address.');
   const tokenAddr = getAddress(input.token.toLowerCase());
@@ -730,6 +768,13 @@ export async function buyOrderStatus(ctx: ShaddaiContext, orderId: string) {
 // ---------------------------------------------------------------------------
 
 export function quoteText(q: BuyQuote): string {
+  const main = quoteLines(q);
+  return q.fallback
+    ? `${main}\n\nOn-chain pools instead (comparison only; nothing can be bought through this):\n${quoteLines(q.fallback)}`
+    : main;
+}
+
+function quoteLines(q: BuyQuote): string {
   const lines = [
     `Share-true buy quote: $${q.usd} of ${q.ticker} share-equivalents, paid in ${q.payIn.symbol}, at BSC block ${q.block}${
       q.mode === 'demo' ? ' — DEMO FIXTURE, not a live quote' : ''

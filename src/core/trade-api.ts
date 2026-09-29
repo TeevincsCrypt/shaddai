@@ -104,6 +104,8 @@ export interface Simulation {
 
 export interface TradeApi {
   readonly label: string;
+  /** True for sources that can quote but not trade (the on-chain fallback). */
+  readonly quoteOnly?: boolean;
   rwaTokens(): Promise<RwaToken[]>;
   quote(p: { from: Address; to: Address; amount: bigint; wallet?: Address }): Promise<Route[]>;
   approveTx(p: { token: Address; amount: bigint; vendor?: string }): Promise<{ tx: EvmTx; spender: Address }>;

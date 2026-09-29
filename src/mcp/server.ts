@@ -9,7 +9,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { isAddress } from 'viem';
 import { z } from 'zod';
-import { quoteShareTrueBuy, quoteText } from '../core/buy.js';
+import { quoteText, quoteWithFallback } from '../core/buy.js';
 import { ledgerToCsv } from '../core/csv.js';
 import { buildPreview, previewText } from '../core/preview.js';
 import { probeTokens } from '../core/probe.js';
@@ -200,7 +200,7 @@ export async function explainText(ctx: ShaddaiContext, ticker: string): Promise<
 }
 
 const defaultQuoteBuy: NonNullable<McpDeps['quoteBuy']> = async (ctx, ticker, usd) => {
-  const q = await quoteShareTrueBuy(ctx, { ticker, usd });
+  const q = await quoteWithFallback(ctx, { ticker, usd });
   return { text: quoteText(q), data: q };
 };
 
