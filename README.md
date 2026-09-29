@@ -12,7 +12,14 @@ Paste a BSC address and Shaddai returns three things:
 3. **Collateral warning.** If the tokens are supplied to Venus, posted on Lista, or sitting in an LP, a severity-graded
    warning that the protocol counts raw ERC-20 units, not `balanceOfUI`.
 
-It does not swap, trade or sign anything. It reads.
+And one way to act on it:
+
+4. **Share-true Buy.** Size a spot buy in dollars of shares; every wrapper of the ticker is quoted and ranked by the
+   share-equivalents you would own, thin books are refused, and your own wallet approves and signs. See
+   [Buy](#buy).
+
+The first three tabs only read. Buy is off unless the server has a Binance Web3 API key, and even then Shaddai never
+holds funds or keys: the user's wallet signs.
 
 ## Run it
 
@@ -118,6 +125,20 @@ Locally it can also be a path to a JSON file.
 
 Markets are found through the Lista API. To pin one, open it on [lista.org/lending](https://lista.org/lending); the URL
 ends in its 66-character `0x…` id (for example `lista.org/lending/market/bsc/0x2bb6…c5ec`). Comma-separate several.
+
+### `BINANCE_WEB3_API_KEY` and `BINANCE_WEB3_API_SECRET` (optional, turn on Buy)
+
+Apply for a key on the [Binance Web3 API portal](https://web3.binance.com/en/dev-docs/introduction) (sign in with a
+Binance account or a wallet, bind a phone or email). Both values stay on the server; requests are signed there with
+HMAC-SHA256. Related settings:
+
+| Variable                     | Default      | Notes                                                                                        |
+| ---------------------------- | ------------ | -------------------------------------------------------------------------------------------- |
+| `SHADDAI_BUY_MAX_USD`        | `25`         | Largest ticket the server will quote or prepare. Keep it small for live runs.                |
+| `SHADDAI_BUY_MAX_IMPACT_PCT` | `1`          | Hard refusal above this price impact.                                                        |
+| `SHADDAI_BUY_SLIPPAGE_PCT`   | `0.5`        | Slippage passed to `/swap`.                                                                  |
+| `SHADDAI_QUOTE_WALLET`       | none         | Address used for quotes before a wallet connects; RFQ quotes for equity tokens want one.     |
+| `SHADDAI_USD1_ADDRESS`       | token search | Pins USD1. Otherwise found through the Market API and accepted only if `symbol()` says USD1. |
 
 ### Tuning and local-only variables
 
@@ -228,19 +249,53 @@ the CSV label it as demo data.
 | `GET /api/status`              | Config facts (custom RPC set, snapshot shipped; never URLs or keys), index state, RPC endpoint health, request counters. |
 | `GET /api/config`              | Mode, demo address, live example addresses.                                                                              |
 | `POST /api/mcp`                | MCP over Streamable HTTP (stateless, JSON replies). See [MCP tools](#mcp-tools).                                         |
+| `GET /api/buy/config`          | Whether Buy is on, limits, tickers and their wrappers.                                                                   |
+| `GET /api/buy/quote`           | `ticker`, `usd`, `payIn` (`USDT`/`USD1`), optional `wallet`. Share-true comparison; never trades.                        |
+| `POST /api/buy/prepare`        | `{token, usd, payIn, wallet}` → the next step: checked approve plus dry run, or the EIP-712 order with its checks.       |
+| `POST /api/buy/submit`         | `{requestId, signature, vendor, quoteId, signingScheme}` → forwards the signed order.                                    |
+| `GET /api/buy/order/:id`       | Order status until `FILLED`, `FAILED`, `EXPIRED` or `CANCELLED`.                                                         |
+
+## Buy
+
+A buy is sized in **dollars of shares**. For a ticker such as NVDA, Shaddai asks the Binance Web3 API for a quote on
+every wrapper (NVDAB, NVDAon) and ranks them by share-equivalents received: raw tokens out × the factor read on chain
+(`uiMultiplier()` for bStocks, Ondo `sValue`). A token-count comparison can pick the wrong wrapper; the quote says when
+it would. `fromUIAmount()` gives the raw amount that equals the share target, so each row also shows how much of the
+target the ticket fills after costs.
+
+A wrapper is **refused**, not quoted, when:
+
+- its factor was not read (Ondo: "Ondo total-return factor not read — do not treat 1 token as 1 share"; xStocks:
+  "Display factor not on this token — do not invent it");
+- the RWA Data API reports a halt (`ASSET_PAUSED` for a corporate action, market paused or in maintenance), or Ondo's
+  oracle is paused for it;
+- no route comes back;
+- the ticket moves the price more than 1%, measured against a probe quote at a tenth of the size (and the vendor's own
+  figure when it gives one). If depth cannot be measured at all, it is refused rather than assumed deep.
+
+Equity tokens settle as **RFQ orders** on the Binance Web3 API: one exact-amount approve (the calldata is decoded and
+checked, then dry-run through the Transaction API) and one EIP-712 order signature. Before the wallet is asked to sign,
+Shaddai checks that the order names the connected wallet and the chosen token on chain 56. The vendor settles on BSC and
+the tab polls the order until it is filled. There is no swap transaction to simulate for an RFQ order; the tab says so.
+
+Pay-in is USDT (`0x55d3…7955`, the chain-56 token in Binance's own API example) or USD1, which is looked up through the
+Market API's token search and used only if its contract answers `symbol() = "USD1"`.
+
+Spot only, BSC only. Live buys use small amounts from a wallet the team funds; the server caps each ticket
+(`SHADDAI_BUY_MAX_USD`). The demo runs the whole flow on a fixture API with signing disabled.
 
 ## MCP tools
 
 The same reads are available to agents as MCP tools. An agent that calls `balanceOf()` reports raw tokens as shares;
 these tools return both units.
 
-| Tool                   | Title                  | Input                                          |
-| ---------------------- | ---------------------- | ---------------------------------------------- |
-| `sharetrue_portfolio`  | `sharetrue.portfolio`  | `address` (or `"demo"`)                        |
-| `sharetrue_ledger`     | `sharetrue.ledger`     | `address`, optional `ticker` or symbol         |
-| `sharetrue_collateral` | `sharetrue.collateral` | `address`                                      |
-| `sharetrue_explain`    | `sharetrue.explain`    | `ticker` (`NVDA`) or symbol (`NVDAon`)         |
-| `sharetrue_quoteBuy`   | `sharetrue.quoteBuy`   | `ticker`, `usd` (when a quote provider is set) |
+| Tool                   | Title                  | Input                                               |
+| ---------------------- | ---------------------- | --------------------------------------------------- |
+| `sharetrue_portfolio`  | `sharetrue.portfolio`  | `address` (or `"demo"`)                             |
+| `sharetrue_ledger`     | `sharetrue.ledger`     | `address`, optional `ticker` or symbol              |
+| `sharetrue_collateral` | `sharetrue.collateral` | `address`                                           |
+| `sharetrue_explain`    | `sharetrue.explain`    | `ticker` (`NVDA`) or symbol (`NVDAon`)              |
+| `sharetrue_quoteBuy`   | `sharetrue.quoteBuy`   | `ticker`, `usd` (quote only; needs Buy switched on) |
 
 Tool names use underscores because some clients (the Claude API among them) reject dots in tool names; each tool's
 title is the dotted name. Every tool is read-only. Each returns a plain-text statement plus structured JSON; the ledger's JSON includes the CSV.
@@ -263,6 +318,7 @@ src/core/       chain reads, unit math, probing, ledger, collateral, CSV (no fra
 src/fixtures/   fixture chain + demo scenario
 src/server/     Hono app, config, local entrypoint, deploy-time index snapshot
 src/mcp/        MCP tools (server.ts) and the stdio entrypoint
+src/core/buy.ts, trade-api.ts   share-true Buy and the signed Binance Web3 API client
 api/index.ts    Vercel function wrapping the same Hono app
 verify/evm/     the BEP-677 reference token on a local EVM (npm run verify:evm; own package.json, not deployed)
 web/            React statement UI (Vite)

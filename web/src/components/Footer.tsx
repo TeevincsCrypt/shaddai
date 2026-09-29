@@ -28,8 +28,8 @@ export function Footer({ links }: { links?: Record<string, string> }) {
         <p className="legal">
           bStocks, Ondo and xStocks tokens are not the listed share and carry no voting rights. Estimates assume
           published multipliers and typical withholding. Not tax, legal or investment advice. US persons are excluded
-          from several of these products; Shaddai does not check eligibility. Read-only: Shaddai never asks for a
-          signature.
+          from several of these products; Shaddai does not check eligibility. Portfolio, Ledger and Collateral only
+          read. Buy asks your wallet for one approve and one order signature; Shaddai never holds funds or keys.
         </p>
         <div className="links">
           {Object.keys(LABELS).map((k) =>

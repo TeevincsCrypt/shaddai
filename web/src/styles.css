@@ -1009,3 +1009,59 @@ table.stmt tr.group-start td {
   color: var(--ink);
   border-color: var(--accent);
 }
+
+/* ---------- buy ---------- */
+.buy-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px 16px;
+  align-items: end;
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+.buy-form label,
+.buy-form > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.buy-form select,
+.buy-form input {
+  font-family: var(--font-data);
+  font-size: var(--step-0);
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  padding: 9px 10px;
+  width: 100%;
+  min-width: 0;
+}
+.buy-form .seg {
+  justify-self: start;
+}
+table.stmt tr.chosen td {
+  background: var(--accent-soft);
+}
+.buy-exec {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid var(--rule);
+  padding-top: 16px;
+}
+.buy-exec h3 {
+  font-size: var(--step-1);
+}
+.buy-exec .warn .btn {
+  justify-self: start;
+}
+.buy-exec .checks .detail,
+.buy-exec p,
+.buy-exec li {
+  overflow-wrap: anywhere;
+}
+.buy-exec .warn {
+  min-width: 0;
+}
