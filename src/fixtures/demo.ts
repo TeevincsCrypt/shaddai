@@ -8,6 +8,7 @@
  */
 import { getAddress, parseUnits, type Address, type Hex } from 'viem';
 import type { MarkQuote, PoolRef } from '../core/prices.js';
+import type { RwaToken } from '../core/trade-api.js';
 import {
   BSTOCKS,
   LISTA_MOOLAH,
@@ -29,6 +30,8 @@ export const DEMO_ONDO_ORACLE: Address = getAddress('0xde30000000000000000000000
 const VENUS_ORACLE: Address = getAddress('0xde30000000000000000000000000000000000003');
 const AAPLB_USDT_PAIR: Address = getAddress('0xde30000000000000000000000000000000000004');
 const VUSDT: Address = getAddress('0xfd5840cd36d94d7229439859c0112a4185bc0255');
+/** Fixture-only RFQ spender for the demo Buy flow. */
+export const DEMO_RFQ_SPENDER: Address = getAddress('0xde30000000000000000000000000000000000005');
 export const DEMO_LISTA_MARKET_XMPLB: Hex = `0x${'de30'.repeat(15)}0001`;
 export const DEMO_LISTA_MARKET_NVDAB: Hex = `0x${'de30'.repeat(15)}0002`;
 /** NVDAB as the loan asset: the demo address lends in one market and borrows in another. */
@@ -140,6 +143,16 @@ export function buildDemoScenario(
   for (const t of BSTOCKS) tokens.push(mk(t, true, '2026-05-20T00:00:00Z'));
   for (const t of ONDO) tokens.push(mk(t, false, '2026-05-18T00:00:00Z'));
   tokens.push(mk(XMPLB, true, '2026-05-25T00:00:00Z'));
+  // Pay-in token for the demo Buy flow.
+  tokens.push({
+    address: USDT,
+    symbol: 'USDT',
+    decimals: 18,
+    bep677: false,
+    deployBlock: BASE_BLOCK,
+    schedules: [],
+    transfers: [{ block: BASE_BLOCK, from: ZERO, to: DEMO_ADDRESS, value: u('5000') }],
+  });
 
   const sValues: Record<string, string> = {
     NVDAon: '1.0021',
@@ -266,7 +279,7 @@ export function demoMarks(): { marks: Map<Address, MarkQuote>; pools: Map<Addres
     MUB: [118.4, 95_000],
     XMPLB: [100.4, 55_000],
     NVDAon: [231.12, 820_000],
-    AAPLon: [228.77, 300_000],
+    AAPLon: [228.77, 900_000],
     SPYon: [667.9, 1_900_000],
   };
   const marks = new Map<Address, MarkQuote>();
@@ -280,3 +293,35 @@ export function demoMarks(): { marks: Map<Address, MarkQuote>; pools: Map<Addres
   }
   return { marks, pools };
 }
+
+/** Demo RWA listing: market open, Binance ratio equal to the fixture factor. */
+export function demoRwa(): RwaToken[] {
+  const factors: Record<string, string> = {
+    NVDAB: '1.0017',
+    AAPLB: '1.000604',
+    MSFTB: '1',
+    TSLAB: '1',
+    GOOGLB: '1.00084',
+    MUB: '1.00115',
+    NVDAon: '1.0021',
+    AAPLon: '1.0012',
+    SPYon: '1.0034',
+  };
+  const { marks } = demoMarks();
+  return Object.entries(factors).map(([sym, f]) => {
+    const t = DEMO_TOKENS.find((x) => x.symbol === sym)!;
+    const raw = marks.get(t.address)!.rawUsd;
+    return {
+      address: t.address,
+      symbol: sym,
+      platformId: t.issuer === 'Ondo' ? 'ondo' : 'bstock',
+      underlyingTicker: t.ticker,
+      tokenToShareRatio: f,
+      referencePrice: raw / Number(f),
+      tokenPrice: raw,
+      status: { openState: true, marketStatus: 'regular', reasonCode: 'TRADING', reasonMsg: null, nextOpenTime: null },
+    };
+  });
+}
+
+export const DEMO_USDT = USDT;

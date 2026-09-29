@@ -33,6 +33,7 @@ describe('MCP tools (in-memory client)', () => {
       'sharetrue_explain',
       'sharetrue_ledger',
       'sharetrue_portfolio',
+      'sharetrue_quoteBuy',
     ]);
     expect(tools.find((t) => t.name === 'sharetrue_portfolio')!.title).toBe('sharetrue.portfolio');
     expect(tools.every((t) => t.annotations?.readOnlyHint)).toBe(true);
@@ -86,19 +87,29 @@ describe('MCP tools (in-memory client)', () => {
     expect(text(r)).toContain('is not a BSC address');
   });
 
-  it('adds quoteBuy only when a quote provider is wired', async () => {
+  it('quoteBuy compares wrappers on share-equivalents and never trades', async () => {
+    const r = (await client.callTool({
+      name: 'sharetrue_quoteBuy',
+      arguments: { ticker: 'AAPL', usd: 100 },
+    })) as TextResult;
+    const t = text(r);
+    expect(t).toContain('DEMO FIXTURE');
+    expect(t).toMatch(/AAPLon \(Ondo\) — BEST: .* raw × sValue 1\.0012 = .* share-eq/);
+    expect(t).toContain('Counting tokens would pick AAPLB; counting shares picks AAPLon.');
+    expect(t).toContain('Quote only: nothing was traded.');
+    const thin = text(await client.callTool({ name: 'sharetrue_quoteBuy', arguments: { ticker: 'XMPL', usd: 1000 } }));
+    expect(thin).toMatch(/XMPLB \(Demo\): REFUSED\. Thin book/);
+  });
+
+  it('quoteBuy says plainly when Buy is not configured', async () => {
+    const bare = { ...ctx, buy: undefined };
     const [a, b] = InMemoryTransport.createLinkedPair();
     const c2 = new Client({ name: 'test', version: '0' });
-    await createMcpServer({
-      ...deps,
-      quoteBuy: async (_c, t, usd) => ({ text: `${t} ${usd}`, data: { t, usd } }),
-    }).connect(a);
+    await createMcpServer({ mode: 'demo', live: () => bare, demo: () => bare }).connect(a);
     await c2.connect(b);
-    const { tools } = await c2.listTools();
-    expect(tools.map((t) => t.name)).toContain('sharetrue_quoteBuy');
-    expect(text(await c2.callTool({ name: 'sharetrue_quoteBuy', arguments: { ticker: 'AAPL', usd: 50 } }))).toBe(
-      'AAPL 50',
-    );
+    const r = (await c2.callTool({ name: 'sharetrue_quoteBuy', arguments: { ticker: 'AAPL', usd: 5 } })) as TextResult;
+    expect(r.isError).toBe(true);
+    expect(text(r)).toContain('set BINANCE_WEB3_API_KEY and BINANCE_WEB3_API_SECRET');
     await c2.close();
   });
 });

@@ -1,11 +1,21 @@
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { Hono } from 'hono';
 import { getAddress, isAddress } from 'viem';
+import {
+  BuyError,
+  buyOrderStatus,
+  PAY_IN_SYMBOLS,
+  prepareBuy,
+  quoteShareTrueBuy,
+  submitBuy,
+  type PayInSymbol,
+} from '../core/buy.js';
 import { TtlCache } from '../core/cache.js';
 import { ledgerToCsv } from '../core/csv.js';
 import { LINKS, LISTA_MOOLAH, VENUS_KNOWN_VTOKENS } from '../core/registry.js';
 import { FallbackTransport } from '../core/rpc.js';
 import { getFeed, scanAddress, type ShaddaiContext } from '../core/scan.js';
+import { TradeApiError } from '../core/trade-api.js';
 import type { ScanResult } from '../core/types.js';
 import { DEMO_ADDRESS } from '../fixtures/demo.js';
 import { createMcpServer, type McpDeps } from '../mcp/server.js';
@@ -129,6 +139,98 @@ export function createApp(deps: AppDeps) {
       rpc,
       stats: ctx.chain.stats,
     });
+  });
+
+  // ---- Share-true Buy. Quotes and order building run here; signing happens in the user's wallet.
+  const buyCtx = (demoFlag?: string) => (deps.mode === 'demo' || demoFlag === '1' ? deps.demo() : deps.live());
+  const buyFail = (e: unknown) => {
+    if (e instanceof BuyError) return { status: e.status, error: e.message };
+    if (e instanceof TradeApiError) return { status: 502 as const, error: e.message };
+    return { status: 500 as const, error: `Buy failed: ${(e as Error).message}` };
+  };
+  const payInOf = (v: unknown): PayInSymbol | undefined =>
+    PAY_IN_SYMBOLS.includes(v as PayInSymbol) ? (v as PayInSymbol) : undefined;
+
+  app.get('/api/buy/config', (c) => {
+    const ctx = buyCtx(c.req.query('demo'));
+    const tickers = new Map<
+      string,
+      { ticker: string; name: string; wrappers: { symbol: string; issuer: string; address: string }[] }
+    >();
+    for (const t of ctx.tokens) {
+      if (t.demoOnly && ctx.mode !== 'demo') continue;
+      const e = tickers.get(t.ticker) ?? { ticker: t.ticker, name: t.name, wrappers: [] };
+      e.wrappers.push({ symbol: t.symbol, issuer: t.issuer, address: t.address });
+      tickers.set(t.ticker, e);
+    }
+    return c.json({
+      mode: ctx.mode,
+      enabled: Boolean(ctx.buy),
+      api: ctx.buy?.api.label ?? null,
+      limits: ctx.buy
+        ? { maxUsd: ctx.buy.maxUsd, maxImpactPct: ctx.buy.maxImpactPct, slippagePct: ctx.buy.slippagePct }
+        : null,
+      payIn: PAY_IN_SYMBOLS,
+      tickers: [...tickers.values()].sort((a, b) => a.ticker.localeCompare(b.ticker)),
+    });
+  });
+
+  app.get('/api/buy/quote', async (c) => {
+    try {
+      const q = await quoteShareTrueBuy(buyCtx(c.req.query('demo')), {
+        ticker: c.req.query('ticker') ?? '',
+        usd: c.req.query('usd') ?? '',
+        payIn: payInOf(c.req.query('payIn')),
+        wallet: c.req.query('wallet') || null,
+      });
+      return c.json(q);
+    } catch (e) {
+      const f = buyFail(e);
+      return c.json({ error: f.error }, f.status);
+    }
+  });
+
+  app.post('/api/buy/prepare', async (c) => {
+    try {
+      const b = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+      const r = await prepareBuy(buyCtx(c.req.query('demo')), {
+        token: String(b.token ?? ''),
+        usd: b.usd as number,
+        payIn: payInOf(b.payIn),
+        wallet: String(b.wallet ?? ''),
+        demoSkipAllowance: b.demoSkipAllowance === true,
+      });
+      return c.json(r);
+    } catch (e) {
+      const f = buyFail(e);
+      return c.json({ error: f.error }, f.status);
+    }
+  });
+
+  app.post('/api/buy/submit', async (c) => {
+    try {
+      const b = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+      const r = await submitBuy(buyCtx(c.req.query('demo')), {
+        requestId: String(b.requestId ?? ''),
+        signature: String(b.signature ?? ''),
+        vendor: String(b.vendor ?? ''),
+        quoteId: String(b.quoteId ?? ''),
+        signingScheme: typeof b.signingScheme === 'string' ? b.signingScheme : null,
+      });
+      return c.json(r);
+    } catch (e) {
+      const f = buyFail(e);
+      return c.json({ error: f.error }, f.status);
+    }
+  });
+
+  app.get('/api/buy/order/:id', async (c) => {
+    try {
+      return c.json(await buyOrderStatus(buyCtx(c.req.query('demo')), c.req.param('id')));
+    } catch (e) {
+      const f = buyFail(e);
+      return c.json({ error: f.error }, f.status);
+    }
   });
 
   // MCP over Streamable HTTP, stateless: a fresh server per request, JSON replies.

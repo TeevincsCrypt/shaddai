@@ -1,5 +1,6 @@
 import { getAddress, type Address, type Hex } from 'viem';
 import type { RawAtOptions } from './balances.js';
+import type { BuyConfig } from './buy.js';
 import { TtlCache } from './cache.js';
 import type { Chain } from './chain.js';
 import { scanCollateral } from './collateral.js';
@@ -32,6 +33,8 @@ export interface ShaddaiContext {
   background?: (work: Promise<unknown>) => void;
   /** Deployment facts for /api/status. Never holds URLs or keys. */
   diagnostics?: Record<string, string | boolean | null>;
+  /** Share-true Buy; absent when no trade API is configured. */
+  buy?: BuyConfig;
 }
 
 const ledgerJobs = new WeakMap<ShaddaiContext, TtlCache<LedgerSection>>();

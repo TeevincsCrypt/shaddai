@@ -372,6 +372,8 @@ export class FakeChain implements RpcTransport {
           return bal(args[0]);
         case 'totalSupply':
           return this.totalSupply(tok, block);
+        case 'allowance':
+          return 0n; // the fixture never approves anything
       }
       if (!tok.bep677) return undefined;
       const m = this.uiMultiplier(tok, block);

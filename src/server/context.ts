@@ -18,6 +18,7 @@ import {
   type TokenInfo,
 } from '../core/registry.js';
 import { FallbackTransport, httpTransport } from '../core/rpc.js';
+import { BinanceWeb3Api } from '../core/trade-api.js';
 import type { ShaddaiContext } from '../core/scan.js';
 import {
   buildDemoScenario,
@@ -25,11 +26,16 @@ import {
   DEMO_LISTA_MARKET_NVDAB_BORROW,
   DEMO_LISTA_MARKET_NVDAB_LEND,
   DEMO_LISTA_MARKET_XMPLB,
+  DEMO_ADDRESS,
   DEMO_ONDO_ORACLE,
+  DEMO_RFQ_SPENDER,
   DEMO_TOKENS,
+  DEMO_USDT,
   demoMarks,
+  demoRwa,
 } from '../fixtures/demo.js';
 import { FakeChain } from '../fixtures/fake-chain.js';
+import { FakeTradeApi } from '../fixtures/fake-trade-api.js';
 
 export interface AppConfig {
   port: number;
@@ -50,6 +56,9 @@ export interface AppConfig {
   /** Read-only index snapshot built at deploy time (npm run index:snapshot). */
   seedDir: string;
   maxReplayLogs: number;
+  /** Binance Web3 API credentials for Buy. Never logged or returned. */
+  binance: { apiKey: string; apiSecret: string; basePath: string | null } | null;
+  buy: { maxUsd: number; maxImpactPct: number; slippagePct: string; quoteWallet: Address | null; usd1: Address | null };
 }
 
 const list = (v: string | undefined) =>
@@ -90,7 +99,29 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     cacheDir: env.SHADDAI_CACHE_DIR ?? (env.VERCEL ? '/tmp/shaddai-cache' : '.cache'),
     seedDir,
     maxReplayLogs: Number(env.SHADDAI_MAX_REPLAY_LOGS ?? 20_000),
+    binance:
+      env.BINANCE_WEB3_API_KEY?.trim() && env.BINANCE_WEB3_API_SECRET?.trim()
+        ? {
+            apiKey: env.BINANCE_WEB3_API_KEY.trim(),
+            apiSecret: env.BINANCE_WEB3_API_SECRET.trim(),
+            basePath: env.BINANCE_WEB3_API_BASE?.trim() || null,
+          }
+        : null,
+    buy: {
+      maxUsd: Number(env.SHADDAI_BUY_MAX_USD ?? 25),
+      maxImpactPct: Number(env.SHADDAI_BUY_MAX_IMPACT_PCT ?? 1),
+      slippagePct: env.SHADDAI_BUY_SLIPPAGE_PCT ?? '0.5',
+      quoteWallet: optionalAddress(env.SHADDAI_QUOTE_WALLET, 'SHADDAI_QUOTE_WALLET'),
+      usd1: optionalAddress(env.SHADDAI_USD1_ADDRESS, 'SHADDAI_USD1_ADDRESS'),
+    },
   };
+}
+
+function optionalAddress(v: string | undefined, name: string): Address | null {
+  const s = v?.trim();
+  if (!s) return null;
+  if (!isAddress(s, { strict: false })) throw new Error(`${name} is not an address: ${s}`);
+  return getAddress(s.toLowerCase());
 }
 
 export const ONDO_DISCOVERY_FILE = 'ondo-oracle.json';
@@ -158,7 +189,18 @@ export function createLiveContext(
     rawAt: { maxLogs: cfg.maxReplayLogs },
     ledgerBudgetMs: 12_000,
     background,
+    buy: cfg.binance
+      ? {
+          api: new BinanceWeb3Api({
+            apiKey: cfg.binance.apiKey,
+            apiSecret: cfg.binance.apiSecret,
+            basePath: cfg.binance.basePath ?? undefined,
+          }),
+          ...cfg.buy,
+        }
+      : undefined,
     diagnostics: {
+      buy: cfg.binance ? `on, max $${cfg.buy.maxUsd}` : 'off',
       customRpc: cfg.customRpc,
       logRpc: cfg.logRpcUrls.length > 0,
       snapshotFile: existsSync(join(cfg.seedDir, 'feed-bsc.json')),
@@ -210,6 +252,14 @@ export function demoContext(frozenAt?: number): ShaddaiContext {
       DEMO_ONDO_ORACLE,
     ),
     ledgerBudgetMs: 15_000,
+    buy: {
+      api: new FakeTradeApi({ marks, rwa: demoRwa(), spender: DEMO_RFQ_SPENDER, stable: [DEMO_USDT] }),
+      maxUsd: 5_000,
+      maxImpactPct: 1,
+      slippagePct: '0.5',
+      quoteWallet: DEMO_ADDRESS,
+      usd1: null,
+    },
   };
   if (frozenAt === undefined) demo = { day, ctx };
   return ctx;

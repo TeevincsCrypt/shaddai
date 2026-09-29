@@ -9,6 +9,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { isAddress } from 'viem';
 import { z } from 'zod';
+import { quoteShareTrueBuy, quoteText } from '../core/buy.js';
 import { ledgerToCsv } from '../core/csv.js';
 import { probeTokens } from '../core/probe.js';
 import { LINKS } from '../core/registry.js';
@@ -20,7 +21,7 @@ export interface McpDeps {
   mode: 'live' | 'demo';
   live: () => ShaddaiContext;
   demo: () => ShaddaiContext;
-  /** Optional share-true buy quote (added when a quote provider is configured). */
+  /** Share-true buy quote; defaults to the Buy tab's quote (errors clearly when Buy is not configured). */
   quoteBuy?: (ctx: ShaddaiContext, ticker: string, usd: number) => Promise<{ text: string; data: unknown }>;
 }
 
@@ -197,6 +198,11 @@ export async function explainText(ctx: ShaddaiContext, ticker: string): Promise<
   return { text: lines.join('\n'), data: { ticker: tickerKey, block: head.toString(), wrappers: data } };
 }
 
+const defaultQuoteBuy: NonNullable<McpDeps['quoteBuy']> = async (ctx, ticker, usd) => {
+  const q = await quoteShareTrueBuy(ctx, { ticker, usd });
+  return { text: quoteText(q), data: q };
+};
+
 const errorResult = (e: unknown) => ({
   isError: true,
   content: [{ type: 'text' as const, text: `Shaddai could not complete this: ${(e as Error).message}` }],
@@ -310,8 +316,8 @@ export function createMcpServer(deps: McpDeps): McpServer {
     },
   );
 
-  if (deps.quoteBuy) {
-    const quoteBuy = deps.quoteBuy;
+  {
+    const quoteBuy = deps.quoteBuy ?? defaultQuoteBuy;
     server.registerTool(
       'sharetrue_quoteBuy',
       {
