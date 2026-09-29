@@ -203,6 +203,7 @@ export function createLiveContext(
     diagnostics: {
       // Vercel sets VERCEL_REGION at runtime; Binance applies location-based compliance rules.
       region: process.env.VERCEL_REGION ?? null,
+      commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
       buy: cfg.binance ? `on, max $${cfg.buy.maxUsd}` : 'off',
       customRpc: cfg.customRpc,
       logRpc: cfg.logRpcUrls.length > 0,
