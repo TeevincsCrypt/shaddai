@@ -176,11 +176,20 @@ Dividend reinvestments (all took effect at 00:00 UTC):
   blocks when only bStocks and Ondo tokens are tracked.
 - The deploy-time snapshot built inside Vercel's build step and shipped with the function; the cold function answered
   `/api/status` from it with zero RPC calls.
+- First live statement, the Venus vNVDAB market (`0xEb8C…D371`) as holder: 1,490.553133 NVDAB raw ×
+  1.000778223752807865 = 1,491.713117 share-equivalents, matching the contract's own `balanceOfUI()`. DexScreener marked
+  $229.61 per raw token, $229.43 per share.
+- Its ledger row for NVDAB's 10 Sep dividend: 666.027858 NVDAB held at block 120,970,450 (the block before
+  activation), read by historical `eth_call` on NodeReal (archive state served), giving +0.5183187 share-equivalents,
+  about $118.92 at the current mark. No Transfer event exists for it.
+- The difference between those two figures is the point of the ledger: today's raw-to-share gap (1.16) is not the
+  dividend this holder earned (0.518), because tokens deposited after the event already carried the multiplier.
 
 ## Still to measure
 
 - Time to first `uiMultiplier()` from a cold start (`npm run probe` prints it).
 - Which public endpoints serve `eth_getLogs`, their block-range limits and exact error text. This run used a private
   endpoint; `/api/status` records endpoint failures when public ones are in the list.
-- Whether the ledger's historical `balanceOf` read is served (archive) or falls back to Transfer replay on a given
-  endpoint. Each ledger row says which one it used.
+- Whether public (non-archive) endpoints push the ledger into Transfer replay, and how far replay gets on busy
+  contracts before the `SHADDAI_MAX_REPLAY_LOGS` cap. NodeReal served the archive read. Each ledger row says which
+  path it used.
