@@ -35,6 +35,8 @@ export interface ShaddaiContext {
   diagnostics?: Record<string, string | boolean | null>;
   /** Share-true Buy; absent when no trade API is configured. */
   buy?: BuyConfig;
+  /** Quote-only source (on-chain pools) used when Buy is off or the trade API refuses. */
+  buyFallback?: BuyConfig;
 }
 
 const ledgerJobs = new WeakMap<ShaddaiContext, TtlCache<LedgerSection>>();

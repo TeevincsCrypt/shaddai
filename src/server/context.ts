@@ -18,6 +18,7 @@ import {
   type TokenInfo,
 } from '../core/registry.js';
 import { FallbackTransport, httpTransport } from '../core/rpc.js';
+import { OnchainQuoteApi } from '../core/onchain-quote.js';
 import { BinanceWeb3Api } from '../core/trade-api.js';
 import type { ShaddaiContext } from '../core/scan.js';
 import {
@@ -171,11 +172,12 @@ export function createLiveContext(
     : rpc;
   const chain = new Chain(rpc, { logRpc, logChunk: cfg.logChunk });
   const tokens = [...MAINNET_TOKENS, ...cfg.extraTokens];
+  const prices = new DexScreenerSource();
   return {
     mode: 'live',
     chain,
     tokens,
-    prices: new DexScreenerSource(),
+    prices,
     venus: { comptroller: VENUS_COMPTROLLER, known: VENUS_KNOWN_VTOKENS },
     lista: { moolah: LISTA_MOOLAH, source: new ListaApiSource(LISTA_API_BASE), extraMarketIds: cfg.listaMarketIds },
     ondoOracle: cfg.ondoOracle,
@@ -200,6 +202,7 @@ export function createLiveContext(
           ...cfg.buy,
         }
       : undefined,
+    buyFallback: { api: new OnchainQuoteApi(chain, prices), ...cfg.buy },
     diagnostics: {
       // Vercel sets VERCEL_REGION at runtime; Binance applies location-based compliance rules.
       region: process.env.VERCEL_REGION ?? null,

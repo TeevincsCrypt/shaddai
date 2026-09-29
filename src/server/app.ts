@@ -7,7 +7,7 @@ import {
   diagnoseBuy,
   PAY_IN_SYMBOLS,
   prepareBuy,
-  quoteShareTrueBuy,
+  quoteWithFallback,
   submitBuy,
   type PayInSymbol,
 } from '../core/buy.js';
@@ -194,11 +194,14 @@ export function createApp(deps: AppDeps) {
     }
     return c.json({
       mode: ctx.mode,
-      enabled: Boolean(ctx.buy),
-      api: ctx.buy?.api.label ?? null,
-      limits: ctx.buy
-        ? { maxUsd: ctx.buy.maxUsd, maxImpactPct: ctx.buy.maxImpactPct, slippagePct: ctx.buy.slippagePct }
-        : null,
+      // enabled: quotes can be shown; trading: an API that can place orders is configured.
+      enabled: Boolean(ctx.buy ?? ctx.buyFallback),
+      trading: Boolean(ctx.buy && !ctx.buy.api.quoteOnly),
+      api: (ctx.buy ?? ctx.buyFallback)?.api.label ?? null,
+      limits: (() => {
+        const b = ctx.buy ?? ctx.buyFallback;
+        return b ? { maxUsd: b.maxUsd, maxImpactPct: b.maxImpactPct, slippagePct: b.slippagePct } : null;
+      })(),
       payIn: PAY_IN_SYMBOLS,
       tickers: [...tickers.values()].sort((a, b) => a.ticker.localeCompare(b.ticker)),
     });
@@ -215,7 +218,7 @@ export function createApp(deps: AppDeps) {
 
   app.get('/api/buy/quote', async (c) => {
     try {
-      const q = await quoteShareTrueBuy(buyCtx(c.req.query('demo')), {
+      const q = await quoteWithFallback(buyCtx(c.req.query('demo')), {
         ticker: c.req.query('ticker') ?? '',
         usd: c.req.query('usd') ?? '',
         payIn: payInOf(c.req.query('payIn')),

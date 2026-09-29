@@ -263,8 +263,18 @@ export function Buy({ demo: demoProp, demoAddress }: { demo: boolean; demoAddres
 
           {quoteError ? <p className="error">{quoteError}</p> : null}
           {quote ? <QuoteTable quote={quote} chosen={chosen} onChoose={setChosen} /> : null}
+          {quote?.fallback ? (
+            <div className="buy-exec">
+              <h3>On-chain pools instead · comparison only</h3>
+              <p className="small muted">
+                The Binance Web3 API refused this server, so here is the same share-true comparison priced against
+                PancakeSwap V2 pool reserves read on BSC. Nothing can be bought through this.
+              </p>
+              <QuoteTable quote={quote.fallback} chosen={null} onChoose={() => undefined} />
+            </div>
+          ) : null}
 
-          {quote && chosenQ?.status === 'ok' ? (
+          {quote && !quote.quoteOnly && chosenQ?.status === 'ok' ? (
             <div className="buy-exec">
               <h3>
                 Buy {amount(chosenQ.shareEqOut, 6)} share-eq of {quote.ticker} as {chosenQ.token.symbol}
@@ -358,6 +368,7 @@ function QuoteTable({
                 best={w.token.address === quote.best}
                 chosen={w.token.address === chosen}
                 onChoose={onChoose}
+                quoteOnly={quote.quoteOnly}
               />
             ))}
           </tbody>
@@ -384,11 +395,13 @@ function WrapperRow({
   best,
   chosen,
   onChoose,
+  quoteOnly,
 }: {
   w: WrapperQuote;
   best: boolean;
   chosen: boolean;
   onChoose: (a: string) => void;
+  quoteOnly: boolean;
 }) {
   const refused = w.status === 'refused';
   return (
@@ -466,9 +479,13 @@ function WrapperRow({
         ) : (
           <div style={{ display: 'grid', gap: 6, justifyItems: 'start' }}>
             {best ? <span className="chip">Most shares</span> : null}
-            <button type="button" className="btn" aria-pressed={chosen} onClick={() => onChoose(w.token.address)}>
-              {chosen ? 'Selected' : 'Select'}
-            </button>
+            {quoteOnly ? (
+              <span className="chip quiet">Quote only</span>
+            ) : (
+              <button type="button" className="btn" aria-pressed={chosen} onClick={() => onChoose(w.token.address)}>
+                {chosen ? 'Selected' : 'Select'}
+              </button>
+            )}
           </div>
         )}
       </td>

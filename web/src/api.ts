@@ -8,6 +8,8 @@ export type { BuyQuote, FeedResult, OrderStatus, PayInSymbol, PrepareResult, Pre
 export interface BuyConfigResponse {
   mode: 'live' | 'demo';
   enabled: boolean;
+  /** False when only quotes are available (no trading API). */
+  trading: boolean;
   api: string | null;
   limits: { maxUsd: number; maxImpactPct: number; slippagePct: string } | null;
   payIn: PayInSymbol[];

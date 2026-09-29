@@ -287,6 +287,12 @@ the tab polls the order until it is filled. There is no swap transaction to simu
 Pay-in is USDT (`0x55d3…7955`, the chain-56 token in Binance's own API example) or USD1, which is looked up through the
 Market API's token search and used only if its contract answers `symbol() = "USD1"`.
 
+**On-chain comparison.** When the server has no Binance key, or Binance refuses every wrapper, the Buy tab and
+`sharetrue_quoteBuy` still rank wrappers by share-equivalents, priced against PancakeSwap V2 pool reserves read on BSC
+(Uniswap V2 `getAmountOut` with PancakeSwap's 0.25% fee). Only pools DexScreener labels PancakeSwap V2 are used; others
+are skipped rather than guessed. The same 1% rule applies. It is a comparison only: nothing can be bought through it,
+and it is labelled that way.
+
 **If Buy says "compliance restriction (code 40304)".** Binance declined the request. It limits tokenized-stock services
 by jurisdiction, and the location of the server calling the API is one of the inputs. On Vercel, functions run in
 Washington, D.C. (`iad1`) unless the project picks another region. Open `/api/buy/diagnose`: it shows the region and
