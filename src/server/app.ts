@@ -102,14 +102,20 @@ export function createApp(deps: AppDeps) {
     }
   });
 
-  app.get('/api/status', (c) => {
+  app.get('/api/status', async (c) => {
     const ctx = deps.mode === 'demo' ? deps.demo() : deps.live();
+    // A fresh serverless instance has not read its index yet; load it so the
+    // answer reflects the deploy-time snapshot rather than an empty process.
+    await ctx.feed.loadPersisted().catch(() => undefined);
     const snap = ctx.feed.snapshot();
+    const loaded = snap.scannedTo !== undefined;
     const rpc = ctx.chain.rpc instanceof FallbackTransport ? ctx.chain.rpc.health : [];
     return c.json({
       mode: ctx.mode,
+      config: ctx.diagnostics ?? {},
       feed: {
-        status: snap.status,
+        status: loaded ? snap.status : ctx.feed.running ? 'indexing' : 'not started',
+        running: ctx.feed.running,
         progress: snap.progress,
         error: snap.error,
         scannedFrom: snap.scannedFrom?.toString(),

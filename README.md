@@ -192,13 +192,13 @@ the CSV label it as demo data.
 
 ## API
 
-| Route                          | Returns                                                                                                  |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| `GET /api/scan?address=0x…`    | Portfolio, ledger, collateral, checks. `address=demo` for the fixture.                                   |
-| `GET /api/ledger.csv?address=` | `date, block, issuer, symbol, contract, raw_at_event, old_mult, new_mult, delta_share_eq, est_usd, note` |
-| `GET /api/feed`                | Global multiplier-event feed for the registry (`?demo=1` for the fixture).                               |
-| `GET /api/status`              | Index progress, RPC endpoint health, request counters.                                                   |
-| `GET /api/config`              | Mode, demo address, live example addresses.                                                              |
+| Route                          | Returns                                                                                                                  |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `GET /api/scan?address=0x…`    | Portfolio, ledger, collateral, checks. `address=demo` for the fixture.                                                   |
+| `GET /api/ledger.csv?address=` | `date, block, issuer, symbol, contract, raw_at_event, old_mult, new_mult, delta_share_eq, est_usd, note`                 |
+| `GET /api/feed`                | Global multiplier-event feed for the registry (`?demo=1` for the fixture).                                               |
+| `GET /api/status`              | Config facts (custom RPC set, snapshot shipped; never URLs or keys), index state, RPC endpoint health, request counters. |
+| `GET /api/config`              | Mode, demo address, live example addresses.                                                                              |
 
 ## Project layout
 

@@ -276,6 +276,16 @@ export class FeedIndexer {
     await this.kv.set(this.cacheKey, shape);
   }
 
+  /** Loads the persisted index (cache or deploy-time snapshot) without touching the chain. */
+  async loadPersisted(): Promise<void> {
+    await this.load();
+  }
+
+  /** True while a scan is in flight in this process. */
+  get running(): boolean {
+    return this.inflight !== null;
+  }
+
   /** Loads persisted state, resolves the start block, and returns the next block to scan. */
   async nextBlock(): Promise<bigint> {
     await this.load();

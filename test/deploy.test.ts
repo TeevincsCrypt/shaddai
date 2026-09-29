@@ -117,6 +117,36 @@ describe('deploy-time snapshot + cold function', () => {
     // Index top-up needed at most one range request (plus none for replay: archive state is available).
     expect((fake.calls.eth_getLogs ?? 0) - before).toBeLessThanOrEqual(1);
     expect(r.portfolio.rows.find((x) => x.token.symbol === 'NVDAB' && x.location.kind === 'venus')).toBeDefined();
+
+    // /api/status on a cold instance reports the snapshot and config facts, never the endpoint URL.
+    const keyed = { ...env, BSC_RPC_URLS: `${rpcUrl}/v1/SECRET-KEY` };
+    const cold = createLiveContext(loadConfig(keyed), defaultKV(loadConfig(keyed)));
+    const { createApp } = await import('../src/server/app.js');
+    const app = createApp({ mode: 'live', live: () => cold, demo: () => cold });
+    const res = await app.request('/api/status');
+    const text = await res.text();
+    const status = JSON.parse(text) as {
+      config: Record<string, unknown>;
+      feed: { status: string; scannedTo?: string; events: number };
+    };
+    expect(status.feed.status).toBe('ready');
+    expect(status.feed.scannedTo).toBe(snap.scannedTo?.toString());
+    expect(status.feed.events).toBe(snap.events);
+    expect(status.config).toMatchObject({ customRpc: true, snapshotFile: true });
+    expect(text).not.toContain('SECRET-KEY');
+  });
+
+  it('reports a fresh instance without a snapshot as not started', async () => {
+    const env = { SHADDAI_SEED_DIR: tmp(), SHADDAI_CACHE_DIR: tmp() };
+    const ctx = createLiveContext(loadConfig(env), defaultKV(loadConfig(env)));
+    const { createApp } = await import('../src/server/app.js');
+    const app = createApp({ mode: 'live', live: () => ctx, demo: () => ctx });
+    const status = (await (await app.request('/api/status')).json()) as {
+      config: Record<string, unknown>;
+      feed: { status: string };
+    };
+    expect(status.feed.status).toBe('not started');
+    expect(status.config).toMatchObject({ customRpc: false, snapshotFile: false });
   });
 
   it('keeps an unfinished ledger alive through the background hook', async () => {

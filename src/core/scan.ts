@@ -30,6 +30,8 @@ export interface ShaddaiContext {
    * freeze a function once it responds unless told otherwise (Vercel: waitUntil).
    */
   background?: (work: Promise<unknown>) => void;
+  /** Deployment facts for /api/status. Never holds URLs or keys. */
+  diagnostics?: Record<string, string | boolean | null>;
 }
 
 const ledgerJobs = new WeakMap<ShaddaiContext, TtlCache<LedgerSection>>();

@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { getAddress, isAddress, isHex, type Address, type Hex } from 'viem';
 import { FileKV, LayeredKV, MemoryKV, type KV } from '../core/cache.js';
 import { Chain } from '../core/chain.js';
@@ -32,6 +32,8 @@ export interface AppConfig {
   port: number;
   mode: 'live' | 'demo';
   rpcUrls: string[];
+  /** True when BSC_RPC_URLS was set, i.e. not the public defaults. */
+  customRpc: boolean;
   logRpcUrls: string[];
   scanFromBlock: bigint | null;
   scanFromDate: string;
@@ -67,6 +69,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     port: Number(env.PORT ?? 8787),
     mode: env.SHADDAI_MODE === 'demo' ? 'demo' : 'live',
     rpcUrls: rpcUrls.length ? rpcUrls : DEFAULT_RPC_URLS,
+    customRpc: rpcUrls.length > 0,
     logRpcUrls: list(env.BSC_LOGS_RPC_URLS),
     scanFromBlock: env.SHADDAI_SCAN_FROM_BLOCK ? BigInt(env.SHADDAI_SCAN_FROM_BLOCK) : null,
     scanFromDate: env.SHADDAI_SCAN_FROM_DATE ?? '2026-05-01',
@@ -123,6 +126,14 @@ export function createLiveContext(
     rawAt: { maxLogs: cfg.maxReplayLogs },
     ledgerBudgetMs: 12_000,
     background,
+    diagnostics: {
+      customRpc: cfg.customRpc,
+      logRpc: cfg.logRpcUrls.length > 0,
+      snapshotFile: existsSync(join(cfg.seedDir, 'feed-bsc.json')),
+      ondoOracle: cfg.ondoOracle !== null,
+      extraTokens: String(cfg.extraTokens.length),
+      scanStart: cfg.scanFromBlock !== null ? `block ${cfg.scanFromBlock}` : `date ${cfg.scanFromDate}`,
+    },
   };
 }
 
