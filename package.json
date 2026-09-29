@@ -21,7 +21,8 @@
     "check": "npm run typecheck && prettier --check . && npm test",
     "format": "prettier --write .",
     "index:snapshot": "tsx scripts/build-index.ts",
-    "discover:ondo": "tsx scripts/discover-ondo.ts"
+    "discover:ondo": "tsx scripts/discover-ondo.ts",
+    "verify:evm": "npm --prefix verify/evm install --no-audit --no-fund && tsx verify/evm/run.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.0",

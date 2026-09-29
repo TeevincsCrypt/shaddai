@@ -1,0 +1,12 @@
+{
+  "name": "shaddai-verify-evm",
+  "private": true,
+  "description": "Runs Shaddai against the BEP-677 reference token (real Solidity, local EVM). Kept out of the root package so deploys stay light.",
+  "type": "commonjs",
+  "dependencies": {
+    "@openzeppelin/contracts": "5.0.2",
+    "@openzeppelin/contracts-upgradeable": "5.0.2",
+    "hardhat": "2.29.1",
+    "solc": "0.8.24"
+  }
+}

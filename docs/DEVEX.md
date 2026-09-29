@@ -117,6 +117,12 @@ and a reader that ignores the flag reports a stale number as current.
 interface (`supportsInterface(0xa60bf13d)` is false). So even a Scaled-UI-aware wallet has nothing to scale on an Ondo
 BSC token: the share drift exists only in the oracle.
 
+What we had to build to find the oracle: an address-less `eth_getLogs` over recent blocks for any event whose first or
+second indexed topic is an Ondo token address, newest blocks first, then `getSValue(asset)` on every contract seen for
+two or more Ondo tokens. A contract is adopted only if it answers with a plausible 1e18-scaled value for most of the
+nine assets. This runs once per deploy. Address-less log queries are the expensive kind on most providers, which is why
+it is bounded to about ten days of blocks and a 90-second budget.
+
 ## 12. Lista's market list is long and loosely typed
 
 Moolah is Morpho-Blue style: positions are keyed by a `bytes32` market id, so you cannot ask "does this address have
@@ -185,8 +191,27 @@ Dividend reinvestments (all took effect at 00:00 UTC):
 - The difference between those two figures is the point of the ledger: today's raw-to-share gap (1.16) is not the
   dividend this holder earned (0.518), because tokens deposited after the event already carried the multiplier.
 
+## Verified against the reference contract
+
+Mainnet has had no split, overwrite or cancellation yet, so `npm run verify:evm` runs those cases on the real code:
+`ERC8056TokenUpgradeable` from bnb-chain/bep-677-contracts (commit `ff17399`, vendored with its MIT licence), compiled
+with solc 0.8.24, deployed behind `UpgradeableBeacon` + `BeaconProxy` on an in-process Hardhat EVM. The script drives a
+dividend using NVDAB's real multiplier and notice period, a schedule that is overwritten and brought forward, a
+2-for-1 split and a change left pending, with transfers in between. All 18 checks pass:
+
+- Timeline: initialisation, dividend, overwritten, dividend, split (2-for-1), pending, in that order.
+- The contract emitted `UIMultiplierChangeOverwritten` exactly once, and the overwriting `UIMultiplierUpdated` carries
+  the pre-overwrite multiplier as `oldMultiplier`.
+- For every effective change, the contract's own `uiMultiplier()` returns the old value at Shaddai's activation block
+  minus one and the new value at the activation block.
+- Share-equivalents equal `balanceOfUI()`; the pending change matches `newUIMultiplier()` and `effectiveAt()`.
+- Ledger balances before each activation are 100, 70 and 80 as scripted, with archive reads and again through Transfer
+  replay on a simulated pruned node. The split row has no USD credit.
+
 ## Still to measure
 
+- Whether deploy-time discovery finds Ondo's oracle on mainnet, and whether it answers `getSValue(address)`.
+- A Lista `position()` read for a real borrower.
 - Time to first `uiMultiplier()` from a cold start (`npm run probe` prints it).
 - Which public endpoints serve `eth_getLogs`, their block-range limits and exact error text. This run used a private
   endpoint; `/api/status` records endpoint failures when public ones are in the list.

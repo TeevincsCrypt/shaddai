@@ -89,12 +89,19 @@ If you add older tokens through `SHADDAI_EXTRA_TOKENS`, find each one's creation
 address page, click the transaction next to **Contract Creator**, and copy its **Block**. Use the smallest. Registry
 pages: [NVDAB](https://bscscan.com/address/0x02Fca66C1D1aFB4E2A7884261eB00F63598a7436) · [TSLAB](https://bscscan.com/address/0x5b1910eAaD6450E50f816082Aa078C41F10C292f) · [SPCXB](https://bscscan.com/address/0xbe9D156892E55e7154BcD3cB0FEA677F9D3103E1) · [AAPLB](https://bscscan.com/address/0x431a3BEE82E2ca41e49895CbECE5bB0F76A89b7A) · [GOOGLB](https://bscscan.com/address/0x3F53De71c126BdaBAe20f9cD64848d317f6C3238) · [MSFTB](https://bscscan.com/address/0x80106cb3EAD06659A5ad19DF39D9b4733863B9b0) · [CRCLB](https://bscscan.com/address/0x80f3D493EBCe97e343c53D29a137942416B4ffC0) · [AMDB](https://bscscan.com/address/0x75Fd4cF6f8392E41E70391D60c90C0D5211603a1) · [MUB](https://bscscan.com/address/0xcdf2f3e0fa43C47A6662a91C9E4a7C5f69762699) · [SNDKB](https://bscscan.com/address/0x3eE4dF61bd4F867E349BEaE8bFE07bc31b4850fb).
 
-### `ONDO_SSO_ADDRESS` (optional, not published yet)
+### `ONDO_SSO_ADDRESS` (optional: found automatically)
 
-The BSC address of Ondo's SyntheticSharesOracle, which holds `sValue`. It is not listed next to the token addresses.
-Look in [Ondo's contract address page](https://docs.ondo.finance/addresses); background on `sValue` is in
-[Chainlink's Ondo feed docs](https://docs.chain.link/data-feeds/tokenized-equity-feeds/ondo). Unset, Ondo rows show 1 token
-= 1 share and say so. After setting it, `npm run probe` should list Ondo tokens as `ondo-svalue`.
+The BSC address of Ondo's SyntheticSharesOracle, which holds `sValue`. It is not published next to the token list, so
+the Vercel build looks for it on-chain when this variable is unset. It finds contracts that emitted events indexing an
+Ondo token in roughly the last ten days, calls `getSValue(asset)` on each for all nine Ondo tokens, and adopts one only
+if it answers with a plausible value for most of them. The build log prints the result on lines starting with
+`ondo discovery:`, and `/api/status` shows `"ondoOracle": "discovered"` when it worked.
+
+Set the variable yourself to override discovery, for example once Ondo publishes the address
+([contract address page](https://docs.ondo.finance/addresses); background in
+[Chainlink's Ondo feed docs](https://docs.chain.link/data-feeds/tokenized-equity-feeds/ondo)). Locally,
+`npm run discover:ondo` runs the same search with a longer lookback (`npm run discover:ondo -- 6000000`). With no
+oracle, Ondo rows show 1 token = 1 share and say so.
 
 ### `SHADDAI_EXTRA_TOKENS` (optional)
 
@@ -177,17 +184,31 @@ Verified on mainnet through the deployed app (29 Sep 2026; details in [`docs/DEV
 - The ten bStocks answer `uiMultiplier()` and `supportsInterface(0xa60bf13d)`. The nine Ondo tokens do neither.
 - `UIMultiplierUpdated` on BSC uses the 3-word reference layout. 15 events indexed: 10 deployments and 5 dividends,
   including AAPLB's August 1.000603906×.
+- A live statement (Venus vNVDAB as holder) matches the contract's `balanceOfUI()`, and its ledger row read the
+  historical balance through an archive `eth_call`.
 - The deploy-time index snapshot builds on Vercel and a cold function serves from it.
 
-Not verified yet:
+Verified against the real reference contract, not on mainnet (`npm run verify:evm`, 18 checks): the
+[bnb-chain/bep-677-contracts](https://github.com/bnb-chain/bep-677-contracts) token, compiled with solc 0.8.24 and
+deployed behind a BeaconProxy on a local Hardhat EVM, driven through a dividend, a scheduled-then-overwritten change,
+a 2-for-1 split and a pending change. Shaddai's activation blocks match the block where the contract's own
+`uiMultiplier()` flips, share-equivalents equal `balanceOfUI()`, the ledger's balances match with archive reads and with
+Transfer replay, and the split gets no USD credit. Mainnet has not had a split or an overwrite yet.
 
-- The Ondo oracle's BSC address is not published next to the token list, and the `getSValue` name is assumed; it must
-  be configured and confirmed.
+Still open:
+
+- Ondo: the oracle is found at deploy time only if it emitted events recently and answers `getSValue(address)`. If the
+  build log says `ondo discovery: not found`, send the candidates it lists; the function name may differ.
+- Lista: market discovery and `idToMarketParams()` run on every scan (see the Collateral tab's "What this scan
+  checked"), but `position()` has not been read for a real borrower. To check one, open
+  [NVDAB transfers involving Lista's Moolah contract](https://bscscan.com/token/0x02Fca66C1D1aFB4E2A7884261eB00F63598a7436?a=0x8F73b65B4caAf64FBA2aF91cC5D4a2A1318E5D8C),
+  take the **From** address of a transfer _into_ Moolah, and read its statement. The Collateral tab should show a Lista
+  warning with the same raw amount the depositor sent (less anything withdrawn since).
 - No xStocks BSC address is confirmed, so none is bundled.
-- The Lista Moolah address and read path are from [lista-dao/lending-sdk](https://github.com/lista-dao/lending-sdk);
-  Lista positions have not been read from a live holder yet.
-- Overwritten and cancelled schedules, and splits, have not happened on mainnet yet; they are covered by tests against
-  the fixture chain, which mirrors `ERC8056BaseUpgradeable`.
+
+For a demo that fires every warning live, use a wallet you control: a few dollars of NVDAB supplied to Venus, some
+AAPLB posted on Lista and a small PancakeSwap V2 position. The featured examples on the landing page are protocol
+contracts, not people's wallets.
 
 ## Demo fixture
 
@@ -215,12 +236,14 @@ src/core/       chain reads, unit math, probing, ledger, collateral, CSV (no fra
 src/fixtures/   fixture chain + demo scenario
 src/server/     Hono app, config, local entrypoint, deploy-time index snapshot
 api/index.ts    Vercel function wrapping the same Hono app
+verify/evm/     the BEP-677 reference token on a local EVM (npm run verify:evm; own package.json, not deployed)
 web/            React statement UI (Vite)
 test/           vitest suites (units, events/timeline, replay, end-to-end demo scan, API)
 docs/DEVEX.md   developer-experience report
 ```
 
-`npm run check` runs the typecheck, Prettier and the test suite.
+`npm run check` runs the typecheck, Prettier and the test suite. `npm run verify:evm` installs Hardhat and solc into
+`verify/evm` and runs the reference-contract checks (about 3 s after the install).
 
 ## Not advice
 
