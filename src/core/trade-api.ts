@@ -224,7 +224,10 @@ export class BinanceWeb3Api implements TradeApi {
         signal: AbortSignal.timeout(this.opts.timeoutMs ?? 10_000),
       });
     } catch (e) {
-      throw new TradeApiError(`${what}: network error (${(e as Error).message})`);
+      // Node's fetch says only "fetch failed"; the reason (DNS, reset, TLS, timeout) is in `cause`.
+      const cause = (e as { cause?: { code?: string; message?: string } }).cause;
+      const why = [cause?.code, cause?.message].filter(Boolean).join(': ');
+      throw new TradeApiError(`${what}: network error (${(e as Error).message}${why ? ` — ${why}` : ''})`);
     }
     const text = await res.text();
     let parsed: Envelope<T> | null = null;

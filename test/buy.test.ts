@@ -479,3 +479,36 @@ describe('compliance refusals (code 40304)', () => {
     expect(d2.reading).toMatch(/^Every call is refused/);
   });
 });
+
+describe('network errors', () => {
+  it('names the underlying reason instead of a bare "fetch failed"', async () => {
+    const dns = Object.assign(new Error('getaddrinfo ENOTFOUND web3.binance.com'), { code: 'ENOTFOUND' });
+    const api = new BinanceWeb3Api({
+      apiKey: 'k',
+      apiSecret: 's',
+      fetchImpl: async () => {
+        throw Object.assign(new TypeError('fetch failed'), { cause: dns });
+      },
+    });
+    await expect(api.rwaTokens()).rejects.toThrow(
+      'RWA token list: network error (fetch failed — ENOTFOUND: getaddrinfo ENOTFOUND web3.binance.com)',
+    );
+  });
+});
+
+describe('diagnose readings', () => {
+  it('says so when nothing reached Binance', async () => {
+    const ctx = demoContext(NOW);
+    const net = new TradeApiError('Quote: network error (fetch failed — ENOTFOUND)');
+    ctx.buy!.api = new FakeTradeApi({
+      marks: demoMarks().marks,
+      rwa: demoRwa(),
+      spender: DEMO_RFQ_SPENDER,
+      stable: [DEMO_USDT],
+      fail: { rwaTokens: net, searchToken: net, quote: net },
+    });
+    const app = createApp({ mode: 'demo', live: () => ctx, demo: () => ctx });
+    const d = (await (await app.request('/api/buy/diagnose')).json()) as { reading: string };
+    expect(d.reading).toMatch(/^The Binance Web3 API could not be reached from this machine/);
+  });
+});

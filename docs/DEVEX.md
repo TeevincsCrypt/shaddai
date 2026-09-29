@@ -204,9 +204,11 @@ connectors' code and generated types. Nothing in this section has been checked a
 - The first live `/quote` (USDT → bStock wrapper, from the Vercel deploy with its default region) came back as a JSON
   envelope with code 40304, "Service not available due to compliance restriction". It was a business error in the
   body, not an HTTP error, so the official npm connector would have handed back `null` and no message.
-- Not yet known: whether the refusal is tied to the server's location, the API key's account, or equity tokens only.
-  `/api/buy/diagnose` runs four calls (RWA list, token search, a USDT → USDC quote, a USDT → NVDAB quote) to separate
-  those cases.
+- `/api/buy/diagnose` from Vercel region `iad1` (Washington, D.C.): all four calls came back 40304, the RWA token
+  list, a USDT token search, a USDT → USDC quote and a USDT → NVDAB quote. So the refusal is not specific to equity
+  tokens. It covers market data too, and is tied to where the server runs or to the API key's account.
+- Still to separate: location versus account. The same check run from another location (a different function region,
+  or a local run) tells them apart.
 
 ## Measured on mainnet
 
