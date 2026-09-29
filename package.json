@@ -18,7 +18,8 @@
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "probe": "tsx scripts/probe.ts",
-    "check": "npm run typecheck && npm test"
+    "check": "npm run typecheck && prettier --check . && npm test",
+    "format": "prettier --write ."
   },
   "dependencies": {
     "@hono/node-server": "^1.19.0",
@@ -32,6 +33,7 @@
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.2.0",
     "concurrently": "^9.2.0",
+    "prettier": "^3.9.9",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "typescript": "~5.9.3",

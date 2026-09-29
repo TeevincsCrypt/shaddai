@@ -44,7 +44,8 @@ export class ListaApiSource implements ListaMarketSource {
       const data = await this.get<{ total: number; list: { id: string; collateral: string }[] }>(
         `/api/moolah/borrow/markets?page=${page}&pageSize=100&chain=bsc`,
       );
-      for (const m of data.list ?? []) if (isMarketId(m.id)) list.push({ id: m.id, collateral: String(m.collateral ?? '') });
+      for (const m of data.list ?? [])
+        if (isMarketId(m.id)) list.push({ id: m.id, collateral: String(m.collateral ?? '') });
       if ((data.list ?? []).length < 100 || list.length >= data.total) break;
     }
     this.marketsCache = { at: Date.now(), list };

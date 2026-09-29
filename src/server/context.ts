@@ -53,7 +53,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const ondo = env.ONDO_SSO_ADDRESS?.trim();
   if (ondo && !isAddress(ondo, { strict: false })) throw new Error(`ONDO_SSO_ADDRESS is not an address: ${ondo}`);
   const ids = list(env.LISTA_MARKET_IDS);
-  for (const id of ids) if (!isHex(id) || id.length !== 66) throw new Error(`LISTA_MARKET_IDS entry is not bytes32: ${id}`);
+  for (const id of ids)
+    if (!isHex(id) || id.length !== 66) throw new Error(`LISTA_MARKET_IDS entry is not bytes32: ${id}`);
   const extraPath = env.SHADDAI_EXTRA_TOKENS?.trim();
   const extraTokens = extraPath ? parseExtraTokens(JSON.parse(readFileSync(extraPath, 'utf8'))) : [];
   return {
@@ -84,7 +85,12 @@ function startBlockFor(chain: Chain, fromBlock: bigint | null, fromDate: string)
 
 export function createLiveContext(cfg: AppConfig, kv: KV = new FileKV(cfg.cacheDir)): ShaddaiContext {
   const rpc = new FallbackTransport(cfg.rpcUrls.map((u) => httpTransport(u)));
-  const logRpc = cfg.logRpcUrls.length ? new FallbackTransport(cfg.logRpcUrls.map((u) => httpTransport(u)), { concurrency: 4 }) : rpc;
+  const logRpc = cfg.logRpcUrls.length
+    ? new FallbackTransport(
+        cfg.logRpcUrls.map((u) => httpTransport(u)),
+        { concurrency: 4 },
+      )
+    : rpc;
   const chain = new Chain(rpc, { logRpc, logChunk: cfg.logChunk });
   const tokens = [...MAINNET_TOKENS, ...cfg.extraTokens];
   return {
@@ -128,7 +134,13 @@ export function demoContext(frozenAt?: number): ShaddaiContext {
       extraMarketIds: [],
     },
     ondoOracle: DEMO_ONDO_ORACLE,
-    feed: new FeedIndexer(chain, DEMO_TOKENS, new MemoryKV(), async () => fake.blockAt(Date.UTC(2026, 4, 1) / 1000), 'feed-demo'),
+    feed: new FeedIndexer(
+      chain,
+      DEMO_TOKENS,
+      new MemoryKV(),
+      async () => fake.blockAt(Date.UTC(2026, 4, 1) / 1000),
+      'feed-demo',
+    ),
     ledgerBudgetMs: 15_000,
   };
   if (frozenAt === undefined) demo = { day, ctx };

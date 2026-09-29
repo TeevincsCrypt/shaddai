@@ -39,11 +39,15 @@ export class StateUnavailableError extends RpcError {
 }
 
 const REVERT_RE = /revert|invalid opcode|execution error|VM execution error/i;
-const STATE_RE = /missing trie node|header not found|state (is )?not available|historical state|pruned|state histories haven't been fully indexed|required historical state unavailable|unknown block/i;
+const STATE_RE =
+  /missing trie node|header not found|state (is )?not available|historical state|pruned|state histories haven't been fully indexed|required historical state unavailable|unknown block/i;
 export const RANGE_RE =
   /range|too many|limit exceeded|exceed|block range|query returned more than|response size|max results|10000 results|timeout|timed out/i;
 
-export function classifyRpcError(err: { code?: number; message?: string; data?: unknown }, endpoint?: string): RpcError {
+export function classifyRpcError(
+  err: { code?: number; message?: string; data?: unknown },
+  endpoint?: string,
+): RpcError {
   const msg = err.message ?? 'unknown RPC error';
   if (err.code === 3 || REVERT_RE.test(msg)) return new CallRevertedError(msg, err.code, err.data, endpoint);
   if (STATE_RE.test(msg)) return new StateUnavailableError(msg, err.code, err.data, endpoint);
@@ -82,7 +86,12 @@ export function httpTransport(url: string, opts: HttpTransportOptions = {}): Rpc
       }
       if (!res.ok) {
         const text = await res.text().catch(() => '');
-        throw new RpcError(`${method} via ${label}: HTTP ${res.status} ${text.slice(0, 200)}`, res.status, undefined, label);
+        throw new RpcError(
+          `${method} via ${label}: HTTP ${res.status} ${text.slice(0, 200)}`,
+          res.status,
+          undefined,
+          label,
+        );
       }
       const body = (await res.json()) as { result?: T; error?: { code?: number; message?: string; data?: unknown } };
       if (body.error) throw classifyRpcError(body.error, label);

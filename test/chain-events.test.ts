@@ -30,7 +30,12 @@ describe('multiplier log decoding', () => {
       [u('1'), u('1.000604'), 1_786_000_000n],
     );
     const d = decodeMultiplierLog({ ...base, topics: [TOPICS.multiplierUpdated3], data });
-    expect(d).toMatchObject({ type: 'updated', layout: 'bep677-3', oldMultiplier: u('1'), newMultiplier: u('1.000604') });
+    expect(d).toMatchObject({
+      type: 'updated',
+      layout: 'bep677-3',
+      oldMultiplier: u('1'),
+      newMultiplier: u('1.000604'),
+    });
   });
   it('decodes the 4-word variant from the brief', () => {
     const data = encodeAbiParameters(
@@ -111,7 +116,12 @@ describe('timeline semantics (mirrors ERC8056BaseUpgradeable)', () => {
     const probes = await probeTokens(chain, [info], HOLDER, blockOf(day(60)), day(60));
     const p = probes.get(TOKEN)!;
     expect(p.unit.multiplier).toBe('1.002');
-    expect(p.unit.pending).toMatchObject({ multiplier: '2.004', effectiveAt: day(62), kind: 'split', splitLabel: '2-for-1' });
+    expect(p.unit.pending).toMatchObject({
+      multiplier: '2.004',
+      effectiveAt: day(62),
+      kind: 'split',
+      splitLabel: '2-for-1',
+    });
     expect(p.unit.kind).toBe('bep677');
   });
 
@@ -156,7 +166,12 @@ describe('timeline semantics (mirrors ERC8056BaseUpgradeable)', () => {
 
 describe('raw balance at a past block', () => {
   const transfers = [
-    { block: blockOf(day(0)), from: '0x0000000000000000000000000000000000000000' as const, to: OTHER, value: u('1000') },
+    {
+      block: blockOf(day(0)),
+      from: '0x0000000000000000000000000000000000000000' as const,
+      to: OTHER,
+      value: u('1000'),
+    },
     { block: blockOf(day(2)), from: OTHER, to: HOLDER, value: u('10') },
     { block: blockOf(day(12)), from: OTHER, to: HOLDER, value: u('5') },
     { block: blockOf(day(15)), from: HOLDER, to: OTHER, value: u('3') },

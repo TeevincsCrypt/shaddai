@@ -107,16 +107,7 @@ export const LISTA_MOOLAH: Address = getAddress('0x8F73b65B4caAf64FBA2aF91cC5D4a
 export const LISTA_API_BASE = 'https://api.lista.org';
 
 /** Tickers announced as Lista Lending collateral. Used when market discovery is unavailable. */
-export const LISTA_LISTED_SYMBOLS = new Set([
-  'NVDAB',
-  'TSLAB',
-  'CRCLB',
-  'MUB',
-  'GOOGLB',
-  'AAPLB',
-  'MSFTB',
-  'QQQB',
-]);
+export const LISTA_LISTED_SYMBOLS = new Set(['NVDAB', 'TSLAB', 'CRCLB', 'MUB', 'GOOGLB', 'AAPLB', 'MSFTB', 'QQQB']);
 
 export const MULTICALL3: Address = getAddress('0xcA11bde05977b3631167028862bE2a173976CA11');
 

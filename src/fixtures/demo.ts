@@ -117,7 +117,8 @@ export function buildDemoScenario(
   const mk = (t: TokenInfo, bep677: boolean, deployIso: string): FakeToken => {
     const deployBlock = blockAt(d(deployIso));
     const transfers: FakeTransfer[] = [{ block: deployBlock, from: ZERO, to: COUNTERPARTY, value: u('1000000') }];
-    for (const [iso, from, to, v] of flows[t.symbol] ?? []) transfers.push({ block: blockAt(d(iso)), from, to, value: u(v) });
+    for (const [iso, from, to, v] of flows[t.symbol] ?? [])
+      transfers.push({ block: blockAt(d(iso)), from, to, value: u(v) });
     return {
       address: t.address,
       symbol: t.symbol,
@@ -222,9 +223,7 @@ export function buildDemoScenario(
     ],
     ondoOracle: {
       address: DEMO_ONDO_ORACLE,
-      values: new Map(
-        Object.entries(sValues).map(([s, v]) => [bySymbol(s), { sValue: u(v), paused: false }]),
-      ),
+      values: new Map(Object.entries(sValues).map(([s, v]) => [bySymbol(s), { sValue: u(v), paused: false }])),
     },
   };
 }

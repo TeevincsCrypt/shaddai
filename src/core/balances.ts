@@ -35,7 +35,9 @@ export async function rawAtBlocks(
 ): Promise<Map<bigint, RawAt>> {
   const out = new Map<bigint, RawAt>();
   const pending = [...new Set(targets)].filter((t) => t <= head);
-  for (const t of targets) if (t > head) out.set(t, { raw: currentRaw, source: 'assumed-current', note: 'Block is in the future; current balance used.' });
+  for (const t of targets)
+    if (t > head)
+      out.set(t, { raw: currentRaw, source: 'assumed-current', note: 'Block is in the future; current balance used.' });
 
   if (!opts.skipArchive) {
     const remaining: bigint[] = [];

@@ -54,13 +54,7 @@ export function isNearOne(m: bigint, tolBps = 100): boolean {
 }
 
 export type ChangeKind =
-  | 'init'
-  | 'no-change'
-  | 'dividend-reinvest'
-  | 'adjustment-down'
-  | 'large-adjustment'
-  | 'split'
-  | 'reverse-split';
+  'init' | 'no-change' | 'dividend-reinvest' | 'adjustment-down' | 'large-adjustment' | 'split' | 'reverse-split';
 
 export interface ChangeClass {
   kind: ChangeKind;

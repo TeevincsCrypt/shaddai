@@ -10,10 +10,16 @@ const NOW = Date.UTC(2026, 8, 29, 16) / 1000;
 describe('demo scan (end to end on the fixture chain)', async () => {
   const ctx = demoContext(NOW);
   const r = await scanAddress(ctx, DEMO_ADDRESS);
-  const row = (sym: string, kind = 'wallet') => r.portfolio.rows.find((x) => x.token.symbol === sym && x.location.kind === kind);
+  const row = (sym: string, kind = 'wallet') =>
+    r.portfolio.rows.find((x) => x.token.symbol === sym && x.location.kind === kind);
 
   it('shows raw and share-equivalents side by side', () => {
-    expect(row('NVDAB')).toMatchObject({ raw: '10', shareEq: '10.017', multiplier: '1.0017', shareEqSource: 'balanceOfUI' });
+    expect(row('NVDAB')).toMatchObject({
+      raw: '10',
+      shareEq: '10.017',
+      multiplier: '1.0017',
+      shareEqSource: 'balanceOfUI',
+    });
     expect(row('AAPLB')).toMatchObject({ raw: '10', shareEq: '10.00604' });
     expect(row('TSLAB')).toMatchObject({ raw: '2.5', shareEq: '2.5', oneToOneNow: true });
     // 1.0 but with a pending update is not "1:1 right now".
@@ -124,6 +130,8 @@ describe('same ledger without archive access', async () => {
     const pick = (rows: typeof a.ledger.rows) =>
       rows.map((x) => [x.id, x.rawAtEvent, x.deltaShareEq]).sort((p, q) => String(p[0]).localeCompare(String(q[0])));
     expect(pick(b.ledger.rows)).toEqual(pick(a.ledger.rows));
-    expect(b.ledger.rows.filter((x) => x.status === 'effective').every((x) => x.rawAtEventSource === 'replay')).toBe(true);
+    expect(b.ledger.rows.filter((x) => x.status === 'effective').every((x) => x.rawAtEventSource === 'replay')).toBe(
+      true,
+    );
   });
 });

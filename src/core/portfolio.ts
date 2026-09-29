@@ -87,7 +87,12 @@ export function buildPortfolio(
     rows.push(
       make(
         p,
-        { kind: PROTOCOL_KIND[pos.protocol], label: `${pos.protocol} · ${pos.market.label}`, contract: pos.market.address, url: pos.market.url },
+        {
+          kind: PROTOCOL_KIND[pos.protocol],
+          label: `${pos.protocol} · ${pos.market.label}`,
+          contract: pos.market.address,
+          url: pos.market.url,
+        },
         toBase(pos.raw),
         toBase(pos.shareEq),
         p.mult === null ? 'raw' : p.unit.kind === 'ondo-svalue' ? 'sValue' : 'computed',

@@ -165,7 +165,11 @@ export class Chain {
               args: [idx.map((i) => ({ target: calls[i]!.to, allowFailure: true, callData: encoded[i]! }))],
             });
             const raw = await this.call(this.multicallAddr!, data, block);
-            const res = decodeFunctionResult({ abi: multicall3Abi, functionName: 'aggregate3', data: raw }) as readonly {
+            const res = decodeFunctionResult({
+              abi: multicall3Abi,
+              functionName: 'aggregate3',
+              data: raw,
+            }) as readonly {
               success: boolean;
               returnData: Hex;
             }[];
@@ -188,7 +192,10 @@ export class Chain {
           out[i] = decode(i, true, raw);
         } catch (e) {
           if (e instanceof StateUnavailableError) throw e;
-          out[i] = e instanceof CallRevertedError ? { ok: false, error: 'reverted' } : { ok: false, error: (e as Error).message };
+          out[i] =
+            e instanceof CallRevertedError
+              ? { ok: false, error: 'reverted' }
+              : { ok: false, error: (e as Error).message };
         }
       }),
     );
@@ -231,7 +238,9 @@ export class Chain {
               blockTimestamp?: Hex;
               removed?: boolean;
             }[]
-          >('eth_getLogs', [{ address: addr, topics: filter.topics, fromBlock: numberToHex(from), toBlock: numberToHex(to) }]);
+          >('eth_getLogs', [
+            { address: addr, topics: filter.topics, fromBlock: numberToHex(from), toBlock: numberToHex(to) },
+          ]);
           for (const l of logs) {
             if (l.removed) continue;
             results.push({
@@ -272,7 +281,9 @@ export class Chain {
 
     await Promise.all(Array.from({ length: this.logConcurrency }, worker));
     if (fatal) throw fatal;
-    results.sort((a, b) => (a.blockNumber === b.blockNumber ? a.logIndex - b.logIndex : a.blockNumber < b.blockNumber ? -1 : 1));
+    results.sort((a, b) =>
+      a.blockNumber === b.blockNumber ? a.logIndex - b.logIndex : a.blockNumber < b.blockNumber ? -1 : 1,
+    );
     return results;
   }
 

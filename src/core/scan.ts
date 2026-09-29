@@ -61,7 +61,11 @@ export async function scanAddress(
     const q = await ctx.prices.quote(tokens.map((t) => t.address));
     marks = q.marks;
     pools = q.pools;
-    checks.push({ name: 'Prices', status: 'ok', detail: `${ctx.prices.label}: ${marks.size}/${tokens.length} tokens have a DEX mark.` });
+    checks.push({
+      name: 'Prices',
+      status: 'ok',
+      detail: `${ctx.prices.label}: ${marks.size}/${tokens.length} tokens have a DEX mark.`,
+    });
   } catch (e) {
     checks.push({ name: 'Prices', status: 'unavailable', detail: `${ctx.prices.label}: ${(e as Error).message}` });
   }
@@ -92,7 +96,13 @@ export async function scanAddress(
     const st = ondoTokens.map((t) => probes.get(t.address)?.unit.ondo?.status);
     checks.push({
       name: 'Ondo sValue',
-      status: !ctx.ondoOracle ? 'skipped' : st.every((s) => s === 'ok') ? 'ok' : st.some((s) => s === 'ok') ? 'partial' : 'unavailable',
+      status: !ctx.ondoOracle
+        ? 'skipped'
+        : st.every((s) => s === 'ok')
+          ? 'ok'
+          : st.some((s) => s === 'ok')
+            ? 'partial'
+            : 'unavailable',
       detail: ctx.ondoOracle
         ? `SyntheticSharesOracle ${ctx.ondoOracle}: ${st.filter((s) => s === 'ok').length}/${ondoTokens.length} assets answered getSValue().`
         : 'ONDO_SSO_ADDRESS not configured; Ondo rows use the wallet multiplier if one exists, else 1:1.',

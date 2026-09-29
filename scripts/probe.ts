@@ -27,39 +27,43 @@ try {
 }
 
 async function main() {
-if (!arg) {
-  const head = await ctx.chain.blockNumber();
-  const hdr = await ctx.chain.getBlock(head);
-  const probes = await probeTokens(ctx.chain, ctx.tokens, null, head, hdr.timestamp, { ondoOracle: ctx.ondoOracle });
-  console.log(`registry probe at block ${head} (${ms()})`);
-  for (const p of probes.values()) {
-    const u = p.unit;
-    console.log(
-      [
-        p.token.symbol.padEnd(8),
-        (u.onChainSymbol ?? '—').padEnd(8),
-        u.kind.padEnd(12),
-        (u.multiplier ?? '—').padEnd(12),
-        u.pending ? `pending ${u.pending.multiplier} @ ${new Date(u.pending.effectiveAt * 1000).toISOString()}` : '',
-        u.notes.join(' | '),
-      ].join(' '),
-    );
+  if (!arg) {
+    const head = await ctx.chain.blockNumber();
+    const hdr = await ctx.chain.getBlock(head);
+    const probes = await probeTokens(ctx.chain, ctx.tokens, null, head, hdr.timestamp, { ondoOracle: ctx.ondoOracle });
+    console.log(`registry probe at block ${head} (${ms()})`);
+    for (const p of probes.values()) {
+      const u = p.unit;
+      console.log(
+        [
+          p.token.symbol.padEnd(8),
+          (u.onChainSymbol ?? '—').padEnd(8),
+          u.kind.padEnd(12),
+          (u.multiplier ?? '—').padEnd(12),
+          u.pending ? `pending ${u.pending.multiplier} @ ${new Date(u.pending.effectiveAt * 1000).toISOString()}` : '',
+          u.notes.join(' | '),
+        ].join(' '),
+      );
+    }
+  } else {
+    const address = arg === 'demo' ? DEMO_ADDRESS : arg;
+    const r = await scanAddress(ctx, address, { ledgerBudgetMs: 300_000 });
+    console.log(`scan of ${r.address} at block ${r.block} took ${ms()}`);
+    for (const c of r.checks) console.log(`  [${c.status}] ${c.name}: ${c.detail}`);
+    for (const w of r.warnings) console.log(`  warning: ${w}`);
+    for (const row of r.portfolio.rows) {
+      console.log(
+        `  ${row.token.symbol.padEnd(8)} ${row.location.label.padEnd(32)} raw ${row.raw.padEnd(14)} share-eq ${row.shareEq}`,
+      );
+    }
+    for (const l of r.ledger.rows) {
+      console.log(
+        `  ledger ${l.token.symbol} ${l.kind} ${l.status} ${l.oldMultiplier}→${l.newMultiplier} raw@event ${l.rawAtEvent} (${l.rawAtEventSource}) Δ ${l.deltaShareEq}`,
+      );
+    }
+    for (const p of r.collateral.positions) console.log(`  [${p.severity}] ${p.lines.join(' ')}`);
   }
-} else {
-  const address = arg === 'demo' ? DEMO_ADDRESS : arg;
-  const r = await scanAddress(ctx, address, { ledgerBudgetMs: 300_000 });
-  console.log(`scan of ${r.address} at block ${r.block} took ${ms()}`);
-  for (const c of r.checks) console.log(`  [${c.status}] ${c.name}: ${c.detail}`);
-  for (const w of r.warnings) console.log(`  warning: ${w}`);
-  for (const row of r.portfolio.rows) {
-    console.log(`  ${row.token.symbol.padEnd(8)} ${row.location.label.padEnd(32)} raw ${row.raw.padEnd(14)} share-eq ${row.shareEq}`);
-  }
-  for (const l of r.ledger.rows) {
-    console.log(`  ledger ${l.token.symbol} ${l.kind} ${l.status} ${l.oldMultiplier}→${l.newMultiplier} raw@event ${l.rawAtEvent} (${l.rawAtEventSource}) Δ ${l.deltaShareEq}`);
-  }
-  for (const p of r.collateral.positions) console.log(`  [${p.severity}] ${p.lines.join(' ')}`);
-}
-console.log('rpc stats', ctx.chain.stats);
+  console.log('rpc stats', ctx.chain.stats);
 }
 
 main().catch((e: Error) => {

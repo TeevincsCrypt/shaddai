@@ -126,7 +126,9 @@ export function buildTimeline(
   }
   const out: MultiplierEvent[] = [];
   for (const [token, list] of byToken) {
-    list.sort((a, b) => (a.blockNumber === b.blockNumber ? a.logIndex - b.logIndex : a.blockNumber < b.blockNumber ? -1 : 1));
+    list.sort((a, b) =>
+      a.blockNumber === b.blockNumber ? a.logIndex - b.logIndex : a.blockNumber < b.blockNumber ? -1 : 1,
+    );
     const updates = list.filter((d) => d.type === 'updated');
     const kills = list.filter((d) => d.type !== 'updated');
     updates.forEach((u, i) => {
@@ -303,12 +305,15 @@ export class FeedIndexer {
             },
           },
         );
+        // Commit only after the whole range decoded, so a failed header fetch
+        // cannot leave half a batch behind to be appended again on retry.
+        const batch: (DecodedMultiplierLog & { scheduledAt: number })[] = [];
         for (const log of logs) {
           const d = decodeMultiplierLog(log);
           if (!d) continue;
-          const scheduledAt = await this.chain.timestampOf(log);
-          this.decoded.push({ ...d, scheduledAt });
+          batch.push({ ...d, scheduledAt: await this.chain.timestampOf(log) });
         }
+        this.decoded.push(...batch);
         this.scannedTo = head.number;
       }
       await this.resolveEffectiveBlocks(head);

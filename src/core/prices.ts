@@ -47,9 +47,7 @@ export class DexScreenerSource implements PriceSource {
   readonly label = 'DexScreener';
   private cache = new Map<string, { at: number; pairs: DexPair[] }>();
 
-  constructor(
-    private readonly opts: { fetchImpl?: typeof fetch; ttlMs?: number; base?: string } = {},
-  ) {}
+  constructor(private readonly opts: { fetchImpl?: typeof fetch; ttlMs?: number; base?: string } = {}) {}
 
   private get f() {
     return this.opts.fetchImpl ?? fetch;

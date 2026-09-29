@@ -145,7 +145,17 @@ export class FakeChain implements RpcTransport {
   readonly calls: Record<string, number> = {};
 
   constructor(readonly s: FakeScenario) {
-    for (const abi of [erc20Abi, scaledUiAbi, vTokenAbi, venusComptrollerAbi, venusOracleAbi, moolahAbi, v2PairAbi, ondoOracleAbi, multicall3Abi] as Abi[]) {
+    for (const abi of [
+      erc20Abi,
+      scaledUiAbi,
+      vTokenAbi,
+      venusComptrollerAbi,
+      venusOracleAbi,
+      moolahAbi,
+      v2PairAbi,
+      ondoOracleAbi,
+      multicall3Abi,
+    ] as Abi[]) {
       for (const item of abi) {
         if (item.type !== 'function') continue;
         const sel = toFunctionSelector(item);
@@ -266,7 +276,9 @@ export class FakeChain implements RpcTransport {
         });
       });
     }
-    logs.sort((a, b) => (a.blockNumber === b.blockNumber ? a.logIndex - b.logIndex : a.blockNumber < b.blockNumber ? -1 : 1));
+    logs.sort((a, b) =>
+      a.blockNumber === b.blockNumber ? a.logIndex - b.logIndex : a.blockNumber < b.blockNumber ? -1 : 1,
+    );
     this.logs = logs;
     return logs;
   }
@@ -353,7 +365,9 @@ export class FakeChain implements RpcTransport {
         case 'fromUIAmount':
           return ((args[0] as bigint) * ONE) / m;
         case 'supportsInterface':
-          return ['0xa60bf13d', '0x4bd27648', '0x57854fc3', '0xd890fd71', '0x01ffc9a7'].includes(String(args[0]).toLowerCase());
+          return ['0xa60bf13d', '0x4bd27648', '0x57854fc3', '0xd890fd71', '0x01ffc9a7'].includes(
+            String(args[0]).toLowerCase(),
+          );
       }
       return undefined;
     }
@@ -429,7 +443,10 @@ export class FakeChain implements RpcTransport {
     if (this.s.maxLogRange !== undefined && to - from + 1n > this.s.maxLogRange) {
       throw new RpcFail(`exceed maximum block range: ${this.s.maxLogRange}`, -32005);
     }
-    const addrs = f.address === undefined ? null : new Set((Array.isArray(f.address) ? f.address : [f.address]).map((a) => getAddress(a)));
+    const addrs =
+      f.address === undefined
+        ? null
+        : new Set((Array.isArray(f.address) ? f.address : [f.address]).map((a) => getAddress(a)));
     const topics = f.topics ?? [];
     return this.allLogs()
       .filter((l) => l.blockNumber >= from && l.blockNumber <= to && l.blockNumber <= this.s.head())

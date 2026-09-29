@@ -36,7 +36,10 @@ export class FileKV implements KV {
     const p = this.path(key);
     await mkdir(dirname(p), { recursive: true });
     const tmp = `${p}.${process.pid}.tmp`;
-    await writeFile(tmp, JSON.stringify(value, (_k, v) => (typeof v === 'bigint' ? { $big: v.toString() } : v)));
+    await writeFile(
+      tmp,
+      JSON.stringify(value, (_k, v) => (typeof v === 'bigint' ? { $big: v.toString() } : v)),
+    );
     await rename(tmp, p);
   }
 }

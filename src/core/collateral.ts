@@ -70,7 +70,9 @@ export function severityFor(p: TokenProbe): { severity: Severity; reasons: strin
 function driftLines(p: TokenProbe, severity: Severity): string[] {
   const m = p.mult ?? ONE;
   if (p.unit.kind === 'none') {
-    return ['No multiplier interface answered on this token, so Shaddai cannot size the drift. Treat displayed units as unverified.'];
+    return [
+      'No multiplier interface answered on this token, so Shaddai cannot size the drift. Treat displayed units as unverified.',
+    ];
   }
   if (severity === 'alert') {
     const lines: string[] = [];
@@ -96,7 +98,11 @@ function driftLines(p: TokenProbe, severity: Severity): string[] {
   ];
 }
 
-export function oracleCheck(oracleRawUsd: number | null, mark: MarkQuote | undefined, mult: bigint | null): OracleCheck {
+export function oracleCheck(
+  oracleRawUsd: number | null,
+  mark: MarkQuote | undefined,
+  mult: bigint | null,
+): OracleCheck {
   const dexRaw = mark?.rawUsd ?? null;
   if (oracleRawUsd === null) {
     return { oracleRawUsd, dexRawUsd: dexRaw, basis: 'unknown', note: 'Protocol oracle price not readable.' };
@@ -117,7 +123,12 @@ export function oracleCheck(oracleRawUsd: number | null, mark: MarkQuote | undef
   const dRaw = Math.abs(oracleRawUsd - dexRaw) / dexRaw;
   const dShare = Math.abs(oracleRawUsd - dexShare) / dexShare;
   if (Math.min(dRaw, dShare) > 0.05) {
-    return { oracleRawUsd, dexRawUsd: dexRaw, basis: 'unknown', note: 'Oracle is more than 5% from both the per-token and per-share DEX mark.' };
+    return {
+      oracleRawUsd,
+      dexRawUsd: dexRaw,
+      basis: 'unknown',
+      note: 'Oracle is more than 5% from both the per-token and per-share DEX mark.',
+    };
   }
   return dRaw <= dShare
     ? {
@@ -172,7 +183,10 @@ async function venusScan(input: CollateralInput, out: CollateralOutput) {
 
   let oracle: Address | undefined;
   try {
-    oracle = await chain.read<Address>({ to: venus.comptroller, abi: venusComptrollerAbi, functionName: 'oracle' }, block);
+    oracle = await chain.read<Address>(
+      { to: venus.comptroller, abi: venusComptrollerAbi, functionName: 'oracle' },
+      block,
+    );
   } catch {
     oracle = undefined;
   }
@@ -333,7 +347,11 @@ async function lpScan(input: CollateralInput, out: CollateralOutput) {
     }
   }
   if (entries.length === 0) {
-    out.checks.push({ name: 'DEX LP (V2)', status: 'ok', detail: 'No V2-style pools known for held tokens. V3 positions are not scanned.' });
+    out.checks.push({
+      name: 'DEX LP (V2)',
+      status: 'ok',
+      detail: 'No V2-style pools known for held tokens. V3 positions are not scanned.',
+    });
     return;
   }
   const bals = await chain.readMany(

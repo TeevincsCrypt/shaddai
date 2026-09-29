@@ -63,9 +63,10 @@ export const TOPICS = {
 export const SCALED_UI_INTERFACE_ID = '0xa60bf13d' as const;
 
 /**
- * Ondo SyntheticSharesOracle read path. The audit describes
- * `getSValue(address asset) -> (uint128 sValue, bool paused)`; the oracle's BSC
- * address has to be configured (ONDO_SSO_ADDRESS) because it is not published
+ * Ondo SyntheticSharesOracle read path. The Cantina review describes the internal
+ * `_getSValue(address asset) -> (uint128 sValue, bool paused)`; the public
+ * `getSValue` name is assumed and must be confirmed against the deployed oracle.
+ * Its BSC address has to be configured (ONDO_SSO_ADDRESS): it is not published
  * alongside the token list.
  */
 export const ondoOracleAbi = parseAbi(['function getSValue(address asset) view returns (uint128 sValue, bool paused)']);
