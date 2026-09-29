@@ -81,12 +81,13 @@ exact historical read instead of a log replay.
 
 ### `SHADDAI_SCAN_FROM_BLOCK` (optional)
 
-The block just before the first bStock was deployed. Open a token's BscScan page, find **Contract Creator** in the
-overview, click its transaction, and copy the **Block** number. Use the smallest one:
+Where the multiplier-event index starts. The first bStocks were deployed at block **102,441,229** (5 Jun 2026), so
+`102441000` covers everything in the built-in registry and skips about 6.8M empty blocks. Unset, the index starts at
+`SHADDAI_SCAN_FROM_DATE` (default `2026-05-01`), which only makes the first scan longer.
 
-[NVDAB](https://bscscan.com/address/0x02Fca66C1D1aFB4E2A7884261eB00F63598a7436) · [TSLAB](https://bscscan.com/address/0x5b1910eAaD6450E50f816082Aa078C41F10C292f) · [SPCXB](https://bscscan.com/address/0xbe9D156892E55e7154BcD3cB0FEA677F9D3103E1) · [AAPLB](https://bscscan.com/address/0x431a3BEE82E2ca41e49895CbECE5bB0F76A89b7A) · [GOOGLB](https://bscscan.com/address/0x3F53De71c126BdaBAe20f9cD64848d317f6C3238) · [MSFTB](https://bscscan.com/address/0x80106cb3EAD06659A5ad19DF39D9b4733863B9b0) · [CRCLB](https://bscscan.com/address/0x80f3D493EBCe97e343c53D29a137942416B4ffC0) · [AMDB](https://bscscan.com/address/0x75Fd4cF6f8392E41E70391D60c90C0D5211603a1) · [MUB](https://bscscan.com/address/0xcdf2f3e0fa43C47A6662a91C9E4a7C5f69762699) · [SNDKB](https://bscscan.com/address/0x3eE4dF61bd4F867E349BEaE8bFE07bc31b4850fb)
-
-Unset, the index starts at `SHADDAI_SCAN_FROM_DATE` (default `2026-05-01`), which only makes the first scan longer.
+If you add older tokens through `SHADDAI_EXTRA_TOKENS`, find each one's creation block on BscScan: open the token's
+address page, click the transaction next to **Contract Creator**, and copy its **Block**. Use the smallest. Registry
+pages: [NVDAB](https://bscscan.com/address/0x02Fca66C1D1aFB4E2A7884261eB00F63598a7436) · [TSLAB](https://bscscan.com/address/0x5b1910eAaD6450E50f816082Aa078C41F10C292f) · [SPCXB](https://bscscan.com/address/0xbe9D156892E55e7154BcD3cB0FEA677F9D3103E1) · [AAPLB](https://bscscan.com/address/0x431a3BEE82E2ca41e49895CbECE5bB0F76A89b7A) · [GOOGLB](https://bscscan.com/address/0x3F53De71c126BdaBAe20f9cD64848d317f6C3238) · [MSFTB](https://bscscan.com/address/0x80106cb3EAD06659A5ad19DF39D9b4733863B9b0) · [CRCLB](https://bscscan.com/address/0x80f3D493EBCe97e343c53D29a137942416B4ffC0) · [AMDB](https://bscscan.com/address/0x75Fd4cF6f8392E41E70391D60c90C0D5211603a1) · [MUB](https://bscscan.com/address/0xcdf2f3e0fa43C47A6662a91C9E4a7C5f69762699) · [SNDKB](https://bscscan.com/address/0x3eE4dF61bd4F867E349BEaE8bFE07bc31b4850fb).
 
 ### `ONDO_SSO_ADDRESS` (optional, not published yet)
 
@@ -170,16 +171,23 @@ backwards from the current balance, else the current balance with a note. Kinds:
 
 ## What is verified and what is not
 
-- bStocks and Ondo addresses come from the product brief. The **AMDB address failed its EIP-55 checksum** in the source;
-  its hex digits are kept and it is flagged `needsVerification` until `symbol()` confirms it.
-- The multiplier event layout, the pending-change semantics and the overwrite event are taken from
-  [bnb-chain/bep-677-contracts](https://github.com/bnb-chain/bep-677-contracts) (`ERC8056BaseUpgradeable`), not from
-  live logs.
-- The Lista Moolah address and read path are from [lista-dao/lending-sdk](https://github.com/lista-dao/lending-sdk).
-- The Ondo oracle's BSC address is not published next to the token list; it must be configured.
+Verified on mainnet through the deployed app (29 Sep 2026; details in [`docs/DEVEX.md`](docs/DEVEX.md#measured-on-mainnet)):
+
+- All 19 registry addresses return the expected `symbol()`. The brief's AMDB address only had wrong checksum casing.
+- The ten bStocks answer `uiMultiplier()` and `supportsInterface(0xa60bf13d)`. The nine Ondo tokens do neither.
+- `UIMultiplierUpdated` on BSC uses the 3-word reference layout. 15 events indexed: 10 deployments and 5 dividends,
+  including AAPLB's August 1.000603906×.
+- The deploy-time index snapshot builds on Vercel and a cold function serves from it.
+
+Not verified yet:
+
+- The Ondo oracle's BSC address is not published next to the token list, and the `getSValue` name is assumed; it must
+  be configured and confirmed.
 - No xStocks BSC address is confirmed, so none is bundled.
-- This build was developed in a sandbox with no route to BSC RPC, DexScreener or the Lista API. The live path has unit
-  and integration coverage against the fixture chain, not a mainnet run. Run `npm run probe` before a demo.
+- The Lista Moolah address and read path are from [lista-dao/lending-sdk](https://github.com/lista-dao/lending-sdk);
+  Lista positions have not been read from a live holder yet.
+- Overwritten and cancelled schedules, and splits, have not happened on mainnet yet; they are covered by tests against
+  the fixture chain, which mirrors `ERC8056BaseUpgradeable`.
 
 ## Demo fixture
 

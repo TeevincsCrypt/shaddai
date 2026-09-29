@@ -96,8 +96,9 @@ describe('registry', () => {
     expect(set.size).toBe(MAINNET_TOKENS.length);
     for (const t of MAINNET_TOKENS) expect(isAddress(t.address, { strict: true })).toBe(true);
   });
-  it('flags the address whose source checksum was invalid', () => {
-    expect(MAINNET_TOKENS.find((t) => t.symbol === 'AMDB')!.needsVerification).toBe(true);
+  it('normalises the AMDB address whose source casing failed EIP-55', () => {
+    expect(isAddress('0x75Fd4cF6f8392e41E70391d60C90c0d5211603a1', { strict: true })).toBe(false);
+    expect(MAINNET_TOKENS.find((t) => t.symbol === 'AMDB')!.address).toBe('0x75Fd4cF6f8392E41E70391D60c90C0D5211603a1');
   });
   it('parses extra tokens and rejects bad ones', () => {
     const [x] = parseExtraTokens([

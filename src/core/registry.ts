@@ -57,10 +57,8 @@ export const BSTOCKS: TokenInfo[] = [
   t('GOOGLB', 'GOOGL', 'Alphabet', 'bStocks', '0x3F53De71c126BdaBAe20f9cD64848d317f6C3238', 'bep677'),
   t('MSFTB', 'MSFT', 'Microsoft', 'bStocks', '0x80106cb3ead06659a5ad19df39d9b4733863b9b0', 'bep677'),
   t('CRCLB', 'CRCL', 'Circle', 'bStocks', '0x80f3D493EBCe97e343c53D29a137942416B4ffC0', 'bep677'),
-  t('AMDB', 'AMD', 'AMD', 'bStocks', '0x75Fd4cF6f8392e41E70391d60C90c0d5211603a1', 'bep677', {
-    needsVerification: true,
-    note: 'Source address failed its EIP-55 checksum (hex digits kept, casing normalised). Confirm symbol() before relying on it.',
-  }),
+  // The brief's casing failed EIP-55; the hex was right. symbol() returned AMDB on mainnet (29 Sep 2026).
+  t('AMDB', 'AMD', 'AMD', 'bStocks', '0x75Fd4cF6f8392e41E70391d60C90c0d5211603a1', 'bep677'),
   t('MUB', 'MU', 'Micron', 'bStocks', '0xcdf2f3e0fa43C47A6662a91C9E4a7C5f69762699', 'bep677'),
   t('SNDKB', 'SNDK', 'Sandisk', 'bStocks', '0x3eE4dF61bd4F867E349BEaE8bFE07bc31b4850fb', 'bep677'),
 ];
