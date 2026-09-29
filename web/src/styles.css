@@ -1065,3 +1065,47 @@ table.stmt tr.chosen td {
 .buy-exec .warn {
   min-width: 0;
 }
+
+/* ---------- pre-action preview ---------- */
+.preview {
+  display: grid;
+  gap: 10px;
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+.preview h3 {
+  font-size: var(--step-1);
+}
+.preview-list {
+  display: grid;
+  gap: 8px;
+}
+.preview-item {
+  display: grid;
+  gap: 4px;
+  border-left: 3px solid var(--info);
+  padding: 6px 0 6px 12px;
+  min-width: 0;
+}
+.preview-item.watch {
+  border-left-color: var(--watch);
+}
+.preview-item.alert {
+  border-left-color: var(--alert);
+}
+.preview-item p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.preview-head,
+.preview-figs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+}
+.preview-figs {
+  color: var(--muted);
+}

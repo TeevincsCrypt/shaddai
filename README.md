@@ -241,19 +241,20 @@ the CSV label it as demo data.
 
 ## API
 
-| Route                          | Returns                                                                                                                  |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| `GET /api/scan?address=0x…`    | Portfolio, ledger, collateral, checks. `address=demo` for the fixture.                                                   |
-| `GET /api/ledger.csv?address=` | `date, block, issuer, symbol, contract, raw_at_event, old_mult, new_mult, delta_share_eq, est_usd, note`                 |
-| `GET /api/feed`                | Global multiplier-event feed for the registry (`?demo=1` for the fixture).                                               |
-| `GET /api/status`              | Config facts (custom RPC set, snapshot shipped; never URLs or keys), index state, RPC endpoint health, request counters. |
-| `GET /api/config`              | Mode, demo address, live example addresses.                                                                              |
-| `POST /api/mcp`                | MCP over Streamable HTTP (stateless, JSON replies). See [MCP tools](#mcp-tools).                                         |
-| `GET /api/buy/config`          | Whether Buy is on, limits, tickers and their wrappers.                                                                   |
-| `GET /api/buy/quote`           | `ticker`, `usd`, `payIn` (`USDT`/`USD1`), optional `wallet`. Share-true comparison; never trades.                        |
-| `POST /api/buy/prepare`        | `{token, usd, payIn, wallet}` → the next step: checked approve plus dry run, or the EIP-712 order with its checks.       |
-| `POST /api/buy/submit`         | `{requestId, signature, vendor, quoteId, signingScheme}` → forwards the signed order.                                    |
-| `GET /api/buy/order/:id`       | Order status until `FILLED`, `FAILED`, `EXPIRED` or `CANCELLED`.                                                         |
+| Route                          | Returns                                                                                                                                   |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/scan?address=0x…`    | Portfolio, ledger, collateral, checks. `address=demo` for the fixture.                                                                    |
+| `GET /api/ledger.csv?address=` | `date, block, issuer, symbol, contract, raw_at_event, old_mult, new_mult, delta_share_eq, est_usd, note`                                  |
+| `GET /api/feed`                | Global multiplier-event feed for the registry (`?demo=1` for the fixture).                                                                |
+| `GET /api/status`              | Config facts (custom RPC set, snapshot shipped; never URLs or keys), index state, RPC endpoint health, request counters.                  |
+| `GET /api/config`              | Mode, demo address, live example addresses.                                                                                               |
+| `POST /api/mcp`                | MCP over Streamable HTTP (stateless, JSON replies). See [MCP tools](#mcp-tools).                                                          |
+| `GET /api/preview?address=`    | Pre-action collateral preview: flips, oracle gaps, market hours, Binance DeFi cross-check. See [Pre-action preview](#pre-action-preview). |
+| `GET /api/buy/config`          | Whether Buy is on, limits, tickers and their wrappers.                                                                                    |
+| `GET /api/buy/quote`           | `ticker`, `usd`, `payIn` (`USDT`/`USD1`), optional `wallet`. Share-true comparison; never trades.                                         |
+| `POST /api/buy/prepare`        | `{token, usd, payIn, wallet}` → the next step: checked approve plus dry run, or the EIP-712 order with its checks.                        |
+| `POST /api/buy/submit`         | `{requestId, signature, vendor, quoteId, signingScheme}` → forwards the signed order.                                                     |
+| `GET /api/buy/order/:id`       | Order status until `FILLED`, `FAILED`, `EXPIRED` or `CANCELLED`.                                                                          |
 
 ## Buy
 
@@ -283,6 +284,26 @@ Market API's token search and used only if its contract answers `symbol() = "USD
 
 Spot only, BSC only. Live buys use small amounts from a wallet the team funds; the server caps each ticket
 (`SHADDAI_BUY_MAX_USD`). The demo runs the whole flow on a fixture API with signing disabled.
+
+## Pre-action preview
+
+At the top of the Collateral tab, before anyone posts, borrows or buys. For each protocol position, and each wallet
+holding that Venus or Lista lists:
+
+- **The next change, in plain units:** "Multiplier flips at T. Raw stays X. Share-eq becomes Y." Read from
+  `newUIMultiplier()` and `effectiveAt()`. Ondo publishes no schedule, so its rows say the sValue applies as written.
+- **The gap a share-priced oracle would leave** where the protocol counts raw tokens (the vToken, the Lista market),
+  in share-equivalents and dollars. Where Shaddai has measured the oracle's basis (Venus, against the DEX mark), it
+  says which one applies. Otherwise it shows both cases instead of guessing. A gap over 1% of the position is an
+  alert. Borrow rows are framed as debt; pool rows explain who absorbs a dividend flip (LPs, through arbitrage).
+- **Market hours** from the RWA Data API: if the cash market is shut, the row says the reference is stale and that the
+  preview is not a tradable premium.
+- **Binance DeFi API cross-check:** the same address's positions from the DeFi Data API, matched against the chain.
+  Each says whether Binance's amount equals the raw count or the share-equivalents, and lists tracked tokens in
+  protocols Shaddai does not scan.
+
+Market hours and the DeFi cross-check need the Binance Web3 API key; without it the preview still runs and says what
+it skipped. `sharetrue_collateral` returns the same preview to agents.
 
 ## MCP tools
 
@@ -319,6 +340,7 @@ src/fixtures/   fixture chain + demo scenario
 src/server/     Hono app, config, local entrypoint, deploy-time index snapshot
 src/mcp/        MCP tools (server.ts) and the stdio entrypoint
 src/core/buy.ts, trade-api.ts   share-true Buy and the signed Binance Web3 API client
+src/core/preview.ts             pre-action collateral preview
 api/index.ts    Vercel function wrapping the same Hono app
 verify/evm/     the BEP-677 reference token on a local EVM (npm run verify:evm; own package.json, not deployed)
 web/            React statement UI (Vite)

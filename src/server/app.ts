@@ -13,6 +13,7 @@ import {
 import { TtlCache } from '../core/cache.js';
 import { ledgerToCsv } from '../core/csv.js';
 import { LINKS, LISTA_MOOLAH, VENUS_KNOWN_VTOKENS } from '../core/registry.js';
+import { buildPreview } from '../core/preview.js';
 import { FallbackTransport } from '../core/rpc.js';
 import { getFeed, scanAddress, type ShaddaiContext } from '../core/scan.js';
 import { TradeApiError } from '../core/trade-api.js';
@@ -85,6 +86,18 @@ export function createApp(deps: AppDeps) {
       return c.json(result);
     } catch (e) {
       return c.json({ error: `Scan failed: ${(e as Error).message}` }, 502);
+    }
+  });
+
+  app.get('/api/preview', async (c) => {
+    const address = parseAddress(c.req.query('address'));
+    if (!address) return c.json({ error: 'Not a BSC address. Paste a 0x… address (40 hex characters).' }, 400);
+    const ctx = pick(address, c.req.query('demo'));
+    try {
+      const result = await scans.get(`${ctx.mode}:${address}`, () => scanAddress(ctx, address));
+      return c.json(await buildPreview(ctx, result));
+    } catch (e) {
+      return c.json({ error: `Preview failed: ${(e as Error).message}` }, 502);
     }
   });
 

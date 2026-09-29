@@ -31,6 +31,7 @@ import {
   DEMO_RFQ_SPENDER,
   DEMO_TOKENS,
   DEMO_USDT,
+  demoDefi,
   demoMarks,
   demoRwa,
 } from '../fixtures/demo.js';
@@ -253,7 +254,13 @@ export function demoContext(frozenAt?: number): ShaddaiContext {
     ),
     ledgerBudgetMs: 15_000,
     buy: {
-      api: new FakeTradeApi({ marks, rwa: demoRwa(), spender: DEMO_RFQ_SPENDER, stable: [DEMO_USDT] }),
+      api: new FakeTradeApi({
+        marks,
+        rwa: demoRwa(nowSec),
+        defi: demoDefi(),
+        spender: DEMO_RFQ_SPENDER,
+        stable: [DEMO_USDT],
+      }),
       maxUsd: 5_000,
       maxImpactPct: 1,
       slippagePct: '0.5',

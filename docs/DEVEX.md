@@ -192,6 +192,10 @@ connectors' code and generated types. Nothing in this section has been checked a
 - The RWA token list has `tokenToShareRatio` ("1 token ≈ 1.003701 underlying shares") and a status with market hours
   and halt reasons (`ASSET_PAUSED` with `stock_split`, `cash_dividend`, …). Shaddai shows the ratio next to the on-chain
   factor and uses the chain.
+- DeFi Data `POST /api/v1/defi/data/position/list` takes up to 3 addresses and, "this release", BSC only. It nests
+  address → protocol → pool → position collection → position → supply/borrow tokens, with a lending health factor
+  on the collection. `tokenAmount` is documented only as "human-readable (NOT the smallest unit)". Whether a bStock
+  amount is raw or share-equivalent is not stated, so Shaddai compares it with both figures read on chain.
 - USD1's BSC address does not appear in either connector, so Shaddai does not hard-code it. It resolves USD1 through
   token search and checks `symbol()` on chain.
 
@@ -273,6 +277,8 @@ dividend using NVDAB's real multiplier and notice period, a schedule that is ove
 - Whether public (non-archive) endpoints push the ledger into Transfer replay, and how far replay gets on busy
   contracts before the `SHADDAI_MAX_REPLAY_LOGS` cap. NodeReal served the archive read. Each ledger row says which
   path it used.
+- Pre-action preview, once a key is set: whether the DeFi API reports bStock amounts in raw or share units for Venus
+  and Lista, and whether its health factor accounts for the multiplier.
 - Buy, once a key is set: the first live `/quote` for an RFQ route (does it need the wallet, what is the minimum
   size), whether `priceImpactPercent` comes back for RFQ vendors, the real `typedDataToSign` shape per vendor, the
   `/order/submit` id question above, a Transaction API dry run of the approve, and then a small live buy end to end.

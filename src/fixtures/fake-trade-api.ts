@@ -7,7 +7,16 @@
 import { decodeFunctionData, encodeFunctionData, type Address, type Hex } from 'viem';
 import { approveAbi } from '../core/abi.js';
 import type { MarkQuote } from '../core/prices.js';
-import type { BuiltSwap, EvmTx, OrderStatus, Route, RwaToken, Simulation, TradeApi } from '../core/trade-api.js';
+import type {
+  BuiltSwap,
+  DefiPosition,
+  EvmTx,
+  OrderStatus,
+  Route,
+  RwaToken,
+  Simulation,
+  TradeApi,
+} from '../core/trade-api.js';
 
 const SPREAD = 0.002;
 
@@ -26,6 +35,7 @@ export class FakeTradeApi implements TradeApi {
       /** Pay-in tokens the fixture prices at $1. */
       stable: Address[];
       search?: { address: Address; symbol: string; decimals: number | null }[];
+      defi?: DefiPosition[];
       /** Force a failure for one method (tests). */
       fail?: Partial<Record<keyof TradeApi, string>>;
     },
@@ -155,5 +165,10 @@ export class FakeTradeApi implements TradeApi {
   async searchToken(symbol: string) {
     this.hit('searchToken');
     return (this.opts.search ?? []).filter((s) => s.symbol === symbol);
+  }
+
+  async defiPositions(): Promise<DefiPosition[]> {
+    this.hit('defiPositions');
+    return this.opts.defi ?? [];
   }
 }

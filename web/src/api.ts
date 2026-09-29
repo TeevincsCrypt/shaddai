@@ -1,8 +1,9 @@
 import type { BuyQuote, PayInSymbol, PrepareResult, WrapperQuote } from '../../src/core/buy';
+import type { PreviewResult } from '../../src/core/preview';
 import type { OrderStatus } from '../../src/core/trade-api';
 import type { FeedResult, ScanResult } from '../../src/core/types';
 
-export type { BuyQuote, FeedResult, OrderStatus, PayInSymbol, PrepareResult, ScanResult, WrapperQuote };
+export type { BuyQuote, FeedResult, OrderStatus, PayInSymbol, PrepareResult, PreviewResult, ScanResult, WrapperQuote };
 
 export interface BuyConfigResponse {
   mode: 'live' | 'demo';
@@ -32,6 +33,8 @@ export const api = {
   scan: (address: string, poll = false) =>
     getJson<ScanResult>(`/api/scan?address=${encodeURIComponent(address)}${poll ? '&poll=1' : ''}`),
   feed: (demo: boolean) => getJson<FeedResult>(`/api/feed${demo ? '?demo=1' : ''}`),
+  preview: (address: string, demo: boolean) =>
+    getJson<PreviewResult>(`/api/preview?address=${encodeURIComponent(address)}${demo ? '&demo=1' : ''}`),
   csvUrl: (address: string) => `/api/ledger.csv?address=${encodeURIComponent(address)}`,
   buyConfig: (demo: boolean) => getJson<BuyConfigResponse>(`/api/buy/config${demo ? '?demo=1' : ''}`),
   buyQuote: (p: { ticker: string; usd: number; payIn: PayInSymbol; wallet?: string | null }, demo: boolean) => {

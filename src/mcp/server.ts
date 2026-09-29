@@ -11,6 +11,7 @@ import { isAddress } from 'viem';
 import { z } from 'zod';
 import { quoteShareTrueBuy, quoteText } from '../core/buy.js';
 import { ledgerToCsv } from '../core/csv.js';
+import { buildPreview, previewText } from '../core/preview.js';
 import { probeTokens } from '../core/probe.js';
 import { LINKS } from '../core/registry.js';
 import { scanAddress, type ShaddaiContext } from '../core/scan.js';
@@ -278,7 +279,7 @@ export function createMcpServer(deps: McpDeps): McpServer {
     {
       title: 'sharetrue.collateral',
       description:
-        'Whether tokenized stocks on a BSC address sit in Venus, Lista Lending (collateral, lent or borrowed) or a V2 LP, where the protocol counts raw ERC-20 units rather than share-equivalents. Returns Info/Watch/Alert warnings in plain English.',
+        'Whether tokenized stocks on a BSC address sit in Venus, Lista Lending (collateral, lent or borrowed) or a V2 LP, where the protocol counts raw ERC-20 units rather than share-equivalents. Returns Info/Watch/Alert warnings in plain English, plus a pre-action preview: when the next multiplier change lands, what raw and share-eq become, the gap a share-priced oracle would leave, whether the cash market is shut, and what the Binance DeFi API reports for the same positions.',
       inputSchema: { address: addressArg },
       annotations: readOnly,
     },
@@ -286,9 +287,17 @@ export function createMcpServer(deps: McpDeps): McpServer {
       try {
         const p = pick(deps, address);
         const r = await scanAddress(p.ctx, p.address);
+        const preview = await buildPreview(p.ctx, r).catch(() => null);
         return {
-          content: [{ type: 'text', text: collateralText(r) }],
-          structuredContent: { address: r.address, positions: r.collateral.positions, listings: r.collateral.listings },
+          content: [
+            { type: 'text', text: preview ? `${collateralText(r)}\n\n${previewText(preview)}` : collateralText(r) },
+          ],
+          structuredContent: {
+            address: r.address,
+            positions: r.collateral.positions,
+            listings: r.collateral.listings,
+            preview,
+          },
         };
       } catch (e) {
         return errorResult(e);

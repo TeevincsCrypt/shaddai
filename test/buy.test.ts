@@ -343,6 +343,7 @@ describe('Binance Web3 API adapter (official connector, local server)', () => {
       ],
       ['status', () => sdk.getRfqOrderStatus!({ orderId: 'o1' }), () => ours.orderStatus('o1')],
       ['search', () => sdk.searchToken!({ chains: '56', search: 'USD1' }), () => ours.searchToken('USD1')],
+      ['defi', () => sdk.getDeFiPositions!({ addresses: [W], binanceChainIds: ['56'] }), () => ours.defiPositions(W)],
     ];
     const shape = (r: (typeof seen)[number]) => {
       const u = new URL(r.url, 'http://x');

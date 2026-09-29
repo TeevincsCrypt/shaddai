@@ -78,6 +78,23 @@ export interface OrderStatus {
   toAmount: string | null;
 }
 
+/** One token line of a DeFi position, flattened from address → protocol → pool → collection → position. */
+export interface DefiPosition {
+  protocolId: string;
+  protocolName: string;
+  poolType: string;
+  pool: Address | null;
+  /** Lending collections only. */
+  healthFactor: string | null;
+  side: 'supply' | 'borrow';
+  token: Address;
+  symbol: string;
+  /** Human-readable amount as the API reports it. Which unit (raw or share) is not documented. */
+  amount: string;
+  priceUsd: number | null;
+  valueUsd: number | null;
+}
+
 export interface Simulation {
   status: string;
   failReason: string | null;
@@ -108,6 +125,7 @@ export interface TradeApi {
   orderStatus(orderId: string): Promise<OrderStatus>;
   simulate(tx: EvmTx & { from: Address }): Promise<Simulation>;
   searchToken(symbol: string): Promise<{ address: Address; symbol: string; decimals: number | null }[]>;
+  defiPositions(address: Address): Promise<DefiPosition[]>;
 }
 
 export class TradeApiError extends Error {
@@ -422,4 +440,51 @@ export class BinanceWeb3Api implements TradeApi {
         : [];
     });
   }
+
+  async defiPositions(address: Address): Promise<DefiPosition[]> {
+    const data = await this.call<Record<string, unknown>>('DeFi positions', 'POST', '/api/v1/defi/data/position/list', {
+      addresses: [address],
+      binanceChainIds: [BINANCE_BSC_CHAIN_ID],
+    });
+    return flattenDefi(data);
+  }
+}
+
+const arr = (v: unknown) => (Array.isArray(v) ? (v as Record<string, unknown>[]) : []);
+
+export function flattenDefi(data: Record<string, unknown>): DefiPosition[] {
+  const out: DefiPosition[] = [];
+  for (const a of arr(data.addressList)) {
+    for (const pr of arr(a.protocolList)) {
+      if (String(pr.binanceChainId ?? BINANCE_BSC_CHAIN_ID) !== BINANCE_BSC_CHAIN_ID) continue;
+      for (const pool of arr(pr.poolList)) {
+        for (const col of arr(pool.positionCollectionList)) {
+          const detail = (col.positionCollectionDetail ?? null) as Record<string, unknown> | null;
+          for (const pos of arr(col.positionList)) {
+            const tl = (pos.tokenList ?? {}) as Record<string, unknown>;
+            for (const side of ['supply', 'borrow'] as const) {
+              for (const t of arr(tl[side])) {
+                const token = addr(t.tokenAddress);
+                if (!token || t.tokenAmount === undefined) continue;
+                out.push({
+                  protocolId: String(pr.defiProtocolId ?? ''),
+                  protocolName: String(pr.protocolName ?? pr.defiProtocolId ?? 'unknown'),
+                  poolType: String(pool.poolType ?? ''),
+                  pool: addr(pool.poolCa),
+                  healthFactor: str(detail?.healthFactor),
+                  side,
+                  token,
+                  symbol: String(t.tokenSymbol ?? ''),
+                  amount: String(t.tokenAmount),
+                  priceUsd: num(t.tokenPrice),
+                  valueUsd: num(t.tokenValue),
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return out;
 }

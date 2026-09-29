@@ -8,7 +8,7 @@
  */
 import { getAddress, parseUnits, type Address, type Hex } from 'viem';
 import type { MarkQuote, PoolRef } from '../core/prices.js';
-import type { RwaToken } from '../core/trade-api.js';
+import type { DefiPosition, RwaToken } from '../core/trade-api.js';
 import {
   BSTOCKS,
   LISTA_MOOLAH,
@@ -294,8 +294,12 @@ export function demoMarks(): { marks: Map<Address, MarkQuote>; pools: Map<Addres
   return { marks, pools };
 }
 
-/** Demo RWA listing: market open, Binance ratio equal to the fixture factor. */
-export function demoRwa(): RwaToken[] {
+/**
+ * Demo RWA listing: Binance ratio equal to the fixture factor, markets open
+ * except MSFTB, shown with its cash market shut to exercise the stale-reference note.
+ */
+export function demoRwa(nowSec: number = Math.floor(Date.now() / 1000)): RwaToken[] {
+  const nextOpenMs = (Math.floor(nowSec / DAY) * DAY + DAY + 13.5 * 3600) * 1000;
   const factors: Record<string, string> = {
     NVDAB: '1.0017',
     AAPLB: '1.000604',
@@ -319,9 +323,77 @@ export function demoRwa(): RwaToken[] {
       tokenToShareRatio: f,
       referencePrice: raw / Number(f),
       tokenPrice: raw,
-      status: { openState: true, marketStatus: 'regular', reasonCode: 'TRADING', reasonMsg: null, nextOpenTime: null },
+      status:
+        sym === 'MSFTB'
+          ? {
+              openState: false,
+              marketStatus: 'closed',
+              reasonCode: 'MARKET_CLOSED',
+              reasonMsg: 'Outside US cash hours (demo)',
+              nextOpenTime: nextOpenMs,
+            }
+          : { openState: true, marketStatus: 'regular', reasonCode: 'TRADING', reasonMsg: null, nextOpenTime: null },
     };
   });
+}
+
+/** What the demo's Binance DeFi API reports: raw units, plus one protocol Shaddai does not scan. */
+export function demoDefi(): DefiPosition[] {
+  const base = { poolType: 'Lending', pool: null, priceUsd: null, valueUsd: null };
+  const nvdab = bySymbol('NVDAB');
+  return [
+    {
+      ...base,
+      protocolId: 'venus',
+      protocolName: 'Venus',
+      healthFactor: '2.41',
+      side: 'supply',
+      token: nvdab,
+      symbol: 'NVDAB',
+      amount: '12.4',
+    },
+    {
+      ...base,
+      protocolId: 'lista-lending',
+      protocolName: 'Lista Lending',
+      healthFactor: '1.18',
+      side: 'supply',
+      token: XMPLB_ADDR,
+      symbol: 'XMPLB',
+      amount: '30',
+    },
+    {
+      ...base,
+      protocolId: 'lista-lending',
+      protocolName: 'Lista Lending',
+      healthFactor: null,
+      side: 'supply',
+      token: nvdab,
+      symbol: 'NVDAB',
+      amount: '2',
+    },
+    {
+      ...base,
+      protocolId: 'lista-lending',
+      protocolName: 'Lista Lending',
+      healthFactor: '3.02',
+      side: 'borrow',
+      token: nvdab,
+      symbol: 'NVDAB',
+      amount: '0.5',
+    },
+    {
+      ...base,
+      poolType: 'Yield',
+      protocolId: 'demo-vault',
+      protocolName: 'Demo Vault (fictional)',
+      healthFactor: null,
+      side: 'supply',
+      token: bySymbol('AAPLB'),
+      symbol: 'AAPLB',
+      amount: '1.5',
+    },
+  ];
 }
 
 export const DEMO_USDT = USDT;
