@@ -5,6 +5,7 @@
  */
 import { discoverOndoOracle, ONDO_ORACLE_SEARCH_HINTS } from '../src/core/ondo-discovery.js';
 import { MemoryKV } from '../src/core/cache.js';
+import { ONDO_SSO_KNOWN } from '../src/core/registry.js';
 import { createLiveContext, loadConfig } from '../src/server/context.js';
 
 async function main() {
@@ -15,7 +16,12 @@ async function main() {
     ctx.chain,
     ctx.tokens.filter((t) => t.model === 'ondo'),
     head,
-    { lookbackBlocks: lookback, budgetMs: 600_000, hints: ONDO_ORACLE_SEARCH_HINTS, log: console.log },
+    {
+      lookbackBlocks: lookback,
+      budgetMs: 600_000,
+      hints: [ONDO_SSO_KNOWN, ...ONDO_ORACLE_SEARCH_HINTS],
+      log: console.log,
+    },
   );
   console.log(JSON.stringify(d, null, 2));
   if (d.found) console.log(`\nSet ONDO_SSO_ADDRESS=${d.found} (or redeploy: the build adopts it automatically).`);

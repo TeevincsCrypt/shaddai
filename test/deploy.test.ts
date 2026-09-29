@@ -14,7 +14,7 @@ import { StaticListaSource } from '../src/core/lista.js';
 import { StaticPriceSource } from '../src/core/prices.js';
 import { scanAddress, type ShaddaiContext } from '../src/core/scan.js';
 import { buildDemoScenario, DEMO_ADDRESS, DEMO_ONDO_ORACLE } from '../src/fixtures/demo.js';
-import { MAINNET_TOKENS } from '../src/core/registry.js';
+import { MAINNET_TOKENS, ONDO_SSO_KNOWN } from '../src/core/registry.js';
 import { keccak256, pad, toHex, type Hex } from 'viem';
 import { FakeChain } from '../src/fixtures/fake-chain.js';
 import { createLiveContext, defaultKV, loadConfig } from '../src/server/context.js';
@@ -164,7 +164,9 @@ describe('deploy-time snapshot + cold function', () => {
       feed: { status: string };
     };
     expect(status.feed.status).toBe('not started');
-    expect(status.config).toMatchObject({ customRpc: false, snapshotFile: false });
+    // No env var and no discovery result: the pinned mainnet oracle is used.
+    expect(status.config).toMatchObject({ customRpc: false, snapshotFile: false, ondoOracle: 'registry' });
+    expect(loadConfig(env).ondoOracle).toBe(ONDO_SSO_KNOWN);
   });
 
   it('keeps an unfinished ledger alive through the background hook', async () => {

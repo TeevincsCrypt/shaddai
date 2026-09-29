@@ -89,19 +89,18 @@ If you add older tokens through `SHADDAI_EXTRA_TOKENS`, find each one's creation
 address page, click the transaction next to **Contract Creator**, and copy its **Block**. Use the smallest. Registry
 pages: [NVDAB](https://bscscan.com/address/0x02Fca66C1D1aFB4E2A7884261eB00F63598a7436) · [TSLAB](https://bscscan.com/address/0x5b1910eAaD6450E50f816082Aa078C41F10C292f) · [SPCXB](https://bscscan.com/address/0xbe9D156892E55e7154BcD3cB0FEA677F9D3103E1) · [AAPLB](https://bscscan.com/address/0x431a3BEE82E2ca41e49895CbECE5bB0F76A89b7A) · [GOOGLB](https://bscscan.com/address/0x3F53De71c126BdaBAe20f9cD64848d317f6C3238) · [MSFTB](https://bscscan.com/address/0x80106cb3EAD06659A5ad19DF39D9b4733863B9b0) · [CRCLB](https://bscscan.com/address/0x80f3D493EBCe97e343c53D29a137942416B4ffC0) · [AMDB](https://bscscan.com/address/0x75Fd4cF6f8392E41E70391D60c90C0D5211603a1) · [MUB](https://bscscan.com/address/0xcdf2f3e0fa43C47A6662a91C9E4a7C5f69762699) · [SNDKB](https://bscscan.com/address/0x3eE4dF61bd4F867E349BEaE8bFE07bc31b4850fb).
 
-### `ONDO_SSO_ADDRESS` (optional: found automatically)
+### `ONDO_SSO_ADDRESS` (not needed)
 
-The BSC address of Ondo's SyntheticSharesOracle, which holds `sValue`. It is not published next to the token list, so
-the Vercel build looks for it on-chain when this variable is unset. It finds contracts that emitted events indexing an
-Ondo token in roughly the last ten days, calls `getSValue(asset)` on each for all nine Ondo tokens, and adopts one only
-if it answers with a plausible value for most of them. The build log prints the result on lines starting with
-`ondo discovery:`, and `/api/status` shows `"ondoOracle": "discovered"` when it worked.
+The BSC address of Ondo's SyntheticSharesOracle, which holds `sValue`. Ondo does not publish it next to the token list,
+so Shaddai found it on-chain: **`0xF4Fd8a1B412633e10527454137A29Db7Aa35F15e`**, which answered `getSValue(asset)` for
+all nine Ondo tokens on 29 Sep 2026. It is pinned in the registry. Each deploy re-checks it first (one multicall) and,
+if it ever stops answering, searches recent events for a replacement: contracts that emitted events indexing an Ondo
+token, adopted only if `getSValue` answers for most Ondo tokens. The build log shows the outcome on lines starting with
+`ondo discovery:`, and `/api/status` reports `ondoOracle` as `discovered` (verified this deploy), `registry` (pinned
+address, not re-checked) or `env`.
 
-Set the variable yourself to override discovery, for example once Ondo publishes the address
-([contract address page](https://docs.ondo.finance/addresses); background in
-[Chainlink's Ondo feed docs](https://docs.chain.link/data-feeds/tokenized-equity-feeds/ondo)). Locally,
-`npm run discover:ondo` runs the same search with a longer lookback (`npm run discover:ondo -- 6000000`). With no
-oracle, Ondo rows show 1 token = 1 share and say so.
+Set the variable only to override, for example if Ondo publishes a different address. Locally,
+`npm run discover:ondo` runs the same search with a longer lookback.
 
 ### `SHADDAI_EXTRA_TOKENS` (optional)
 
@@ -187,6 +186,10 @@ Verified on mainnet through the deployed app (29 Sep 2026; details in [`docs/DEV
   including AAPLB's August 1.000603906×.
 - A live statement (Venus vNVDAB as holder) matches the contract's `balanceOfUI()`, and its ledger row read the
   historical balance through an archive `eth_call`.
+- Venus market discovery finds three registry markets (TSLAB, NVDAB and SPCXB) among 55 Core Pool markets.
+- A real Lista borrower: five markets proposed by the Lista API, all five confirmed with `idToMarketParams()`, and
+  `position()` returned GOOGLB, MSFTB and NVDAB collateral with open borrows.
+- Ondo's SyntheticSharesOracle was found on-chain at `0xF4Fd…F15e`; `getSValue(address)` answered for 9/9 Ondo tokens.
 - The deploy-time index snapshot builds on Vercel and a cold function serves from it.
 
 Verified against the real reference contract, not on mainnet (`npm run verify:evm`, 18 checks): the
@@ -198,15 +201,9 @@ Transfer replay, and the split gets no USD credit. Mainnet has not had a split o
 
 Still open:
 
-- Ondo: the oracle is found at deploy time only if it emitted events recently and answers `getSValue(address)`. If the
-  build log says `ondo discovery: not found`, send the candidates it lists; the function name may differ.
-- Lista: market discovery and `idToMarketParams()` run on every scan (see the Collateral tab's "What this scan
-  checked"), but `position()` has not been read for a real borrower. To check one, open
-  [NVDAB transfers involving Lista's Moolah contract](https://bscscan.com/token/0x02Fca66C1D1aFB4E2A7884261eB00F63598a7436?a=0x8F73b65B4caAf64FBA2aF91cC5D4a2A1318E5D8C),
-  take the **From** address of a transfer _into_ Moolah, and read its statement. The Collateral tab should show a Lista
-  card (collateral or lent out) with the raw amount the depositor sent, less anything withdrawn since. A **To** address
-  of a `Borrow` transfer should show a Borrowed card.
 - No xStocks BSC address is confirmed, so none is bundled.
+- Lista lending (supply-side) and borrowed-bStock positions are read the same way but have not been seen for a real
+  address yet; the borrower above posted bStocks as collateral.
 
 For a demo that fires every warning live, use a wallet you control: a few dollars of NVDAB supplied to Venus, some
 AAPLB posted on Lista and a small PancakeSwap V2 position. The featured examples on the landing page are protocol

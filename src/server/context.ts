@@ -11,6 +11,7 @@ import {
   LISTA_API_BASE,
   LISTA_MOOLAH,
   MAINNET_TOKENS,
+  ONDO_SSO_KNOWN,
   parseExtraTokens,
   VENUS_COMPTROLLER,
   VENUS_KNOWN_VTOKENS,
@@ -42,7 +43,7 @@ export interface AppConfig {
   logChunk: number;
   ondoOracle: Address | null;
   /** Where ondoOracle came from: the env var, or on-chain discovery at deploy time. */
-  ondoOracleSource: 'env' | 'discovered' | null;
+  ondoOracleSource: 'env' | 'discovered' | 'registry' | null;
   listaMarketIds: Hex[];
   extraTokens: TokenInfo[];
   cacheDir: string;
@@ -80,8 +81,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     scanFromBlock: env.SHADDAI_SCAN_FROM_BLOCK ? BigInt(env.SHADDAI_SCAN_FROM_BLOCK) : null,
     scanFromDate: env.SHADDAI_SCAN_FROM_DATE ?? '2026-05-01',
     logChunk: Number(env.SHADDAI_LOG_CHUNK ?? 50_000),
-    ondoOracle: ondo ? getAddress(ondo.toLowerCase()) : discovered,
-    ondoOracleSource: ondo ? 'env' : discovered ? 'discovered' : null,
+    // Env var wins; then what this deploy's discovery verified; then the pinned mainnet address.
+    ondoOracle: ondo ? getAddress(ondo.toLowerCase()) : (discovered ?? ONDO_SSO_KNOWN),
+    ondoOracleSource: ondo ? 'env' : discovered ? 'discovered' : 'registry',
     listaMarketIds: ids as Hex[],
     extraTokens,
     // Serverless file systems are read-only except /tmp.

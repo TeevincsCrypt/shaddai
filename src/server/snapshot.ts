@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { FileKV } from '../core/cache.js';
+import { ONDO_SSO_KNOWN } from '../core/registry.js';
 import { discoverOndoOracle, ONDO_ORACLE_SEARCH_HINTS } from '../core/ondo-discovery.js';
 import type { ShaddaiContext } from '../core/scan.js';
 import { createLiveContext, ONDO_DISCOVERY_FILE, type AppConfig } from './context.js';
@@ -65,12 +66,14 @@ export async function buildSnapshot(cfg: AppConfig, opts: SnapshotOptions = {}) 
   let ondoOracle: string | null = cfg.ondoOracle;
   const ondoTokens = ctx.tokens.filter((t) => t.model === 'ondo');
   const discoveryMs = opts.ondoDiscoveryMs ?? 90_000;
-  if (!cfg.ondoOracle && ondoTokens.length && discoveryMs > 0) {
+  // Runs unless the address was set by hand; the pinned address is checked first, so this is
+  // one multicall while it keeps answering.
+  if (cfg.ondoOracleSource !== 'env' && ondoTokens.length && discoveryMs > 0) {
     try {
       const d = await discoverOndoOracle(ctx.chain, ondoTokens, head, {
         budgetMs: discoveryMs,
         lookbackBlocks: opts.ondoLookbackBlocks,
-        hints: ONDO_ORACLE_SEARCH_HINTS,
+        hints: [ONDO_SSO_KNOWN, ...ONDO_ORACLE_SEARCH_HINTS],
         log,
       });
       writeFileSync(join(cfg.seedDir, ONDO_DISCOVERY_FILE), JSON.stringify(d, null, 2));

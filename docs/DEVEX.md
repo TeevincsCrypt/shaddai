@@ -196,6 +196,15 @@ Dividend reinvestments (all took effect at 00:00 UTC):
 - Its ledger row for NVDAB's 10 Sep dividend: 666.027858 NVDAB held at block 120,970,450 (the block before
   activation), read by historical `eth_call` on NodeReal (archive state served), giving +0.5183187 share-equivalents,
   about $118.92 at the current mark. No Transfer event exists for it.
+- Venus: `getAllMarkets()` returned 55 Core Pool markets; `underlying()` matched three registry tokens, TSLAB, NVDAB and
+  SPCXB. The brief listed two vTokens; the third came from discovery.
+- Lista: for a real borrower, the Lista API proposed five markets; `idToMarketParams()` confirmed all five on Moolah and
+  `position()` returned collateral of 50.00 and 199.9552 GOOGLB, 130.0605 MSFTB, and 659.8663 and 240.00 NVDAB, each
+  with an open borrow. Share-equivalents follow from each token's multiplier (for example 199.9552 GOOGLB is 200.0508
+  shares).
+- Ondo: deploy-time discovery found the SyntheticSharesOracle at `0xF4Fd8a1B412633e10527454137A29Db7Aa35F15e` from its
+  events, not from the four web-search hits (none of which answered `getSValue` for a majority of the Ondo tokens). `getSValue(address) → (uint128, bool)` returned a
+  plausible 1e18-scaled value for all nine Ondo tokens, which also confirms the function name the audit only implied.
 - The difference between those two figures is the point of the ledger: today's raw-to-share gap (1.16) is not the
   dividend this holder earned (0.518), because tokens deposited after the event already carried the multiplier.
 
@@ -218,8 +227,8 @@ dividend using NVDAB's real multiplier and notice period, a schedule that is ove
 
 ## Still to measure
 
-- Whether deploy-time discovery finds Ondo's oracle on mainnet, and whether it answers `getSValue(address)`.
-- A Lista `position()` read for a real borrower.
+- The actual `sValue` per Ondo asset over time, to compare with the matching bStock multipliers (both reinvest the same
+  dividends, net of different withholding assumptions).
 - Time to first `uiMultiplier()` from a cold start (`npm run probe` prints it).
 - Which public endpoints serve `eth_getLogs`, their block-range limits and exact error text. This run used a private
   endpoint; `/api/status` records endpoint failures when public ones are in the list.

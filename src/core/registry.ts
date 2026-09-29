@@ -100,6 +100,13 @@ export const VENUS_KNOWN_VTOKENS: { underlying: Address; vToken: Address; symbol
   },
 ];
 
+/**
+ * Ondo SyntheticSharesOracle on BSC. Not published by Ondo; found by Shaddai's deploy-time
+ * discovery (29 Sep 2026) and verified with getSValue(asset) answering for 9/9 Ondo tokens.
+ * Each deploy re-checks it first and falls back to discovery if it stops answering.
+ */
+export const ONDO_SSO_KNOWN: Address = getAddress('0xF4Fd8a1B412633e10527454137A29Db7Aa35F15e');
+
 /** Lista Lending core (Moolah, Morpho-Blue style). Address from lista-dao/lending-sdk. */
 export const LISTA_MOOLAH: Address = getAddress('0x8F73b65B4caAf64FBA2aF91cC5D4a2A1318E5D8C');
 export const LISTA_API_BASE = 'https://api.lista.org';
