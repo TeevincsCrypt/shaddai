@@ -6,7 +6,8 @@ import type { ShaddaiContext } from '../core/scan.js';
 import { createApp } from './app.js';
 import { createLiveContext, demoContext, loadConfig } from './context.js';
 
-const cfg = loadConfig();
+// `--demo` instead of SHADDAI_MODE=demo so the same command works on Windows.
+const cfg = loadConfig(process.argv.includes('--demo') ? { ...process.env, SHADDAI_MODE: 'demo' } : process.env);
 let live: ShaddaiContext | null = null;
 const getLive = () => (live ??= createLiveContext(cfg));
 

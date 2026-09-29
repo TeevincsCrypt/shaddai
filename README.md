@@ -29,6 +29,8 @@ npm run build        # builds the web app into dist/web
 npm start            # API + web app on http://localhost:8787
 ```
 
+- **With your settings from `.env`:** copy `.env.example` to `.env`, fill in what you need, then `npm run local`. Works
+  the same on Windows, macOS and Linux (Node's `--env-file`, so Node 20.6 or newer).
 - **Demo, no network:** click _Open the demo_ on the landing page, or open `http://localhost:8787/?a=demo`. The demo runs
   on an in-process fixture chain (see [Demo fixture](#demo-fixture)).
 - **Demo-only server:** `npm run demo` serves every address from the fixture chain.
@@ -36,7 +38,7 @@ npm start            # API + web app on http://localhost:8787
 - **Live smoke test from the terminal:** `npm run probe` prints every registry token's unit model and the
   time-to-first-`uiMultiplier()`. `npm run probe -- 0xAddress` prints a full statement.
 
-Node 20+ is required. `.npmrc` sets `legacy-peer-deps` because npm 10's peer resolver crashes on this dependency set.
+Node 20.6+ is required. `.npmrc` sets `legacy-peer-deps` because npm 10's peer resolver crashes on this dependency set.
 
 ## Deploy on Vercel
 
