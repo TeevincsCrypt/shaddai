@@ -12,7 +12,7 @@ export function toPrice(mark: MarkQuote | undefined, mult: bigint | null, source
   if (!mark) return null;
   return {
     rawUsd: mark.rawUsd,
-    shareUsd: mult !== null ? uiPrice(mark.rawUsd, mult) : mark.rawUsd,
+    shareUsd: mult !== null ? uiPrice(mark.rawUsd, mult) : null,
     source,
     dex: mark.dex,
     pair: mark.pair,
@@ -42,7 +42,7 @@ export function buildPortfolio(
     p: TokenProbe,
     location: PortfolioRow['location'],
     raw: bigint,
-    shareEq: bigint,
+    shareEq: bigint | null,
     source: PortfolioRow['shareEqSource'],
   ): PortfolioRow => {
     const dec = p.unit.decimals;
@@ -53,9 +53,9 @@ export function buildPortfolio(
       token: tokenRef(p.token),
       location,
       raw: decimalString(raw, dec),
-      shareEq: decimalString(shareEq, dec),
+      shareEq: shareEq === null ? null : decimalString(shareEq, dec),
       shareEqSource: source,
-      drift: decimalString(shareEq - raw, dec),
+      drift: shareEq === null ? null : decimalString(shareEq - raw, dec),
       multiplier: p.unit.multiplier,
       price,
       positionUsd,
@@ -95,8 +95,8 @@ export function buildPortfolio(
           url: pos.market.url,
         },
         toBase(pos.raw),
-        toBase(pos.shareEq),
-        p.mult === null ? 'raw' : p.unit.kind === 'ondo-svalue' ? 'sValue' : 'computed',
+        pos.shareEq === null ? null : toBase(pos.shareEq),
+        p.mult === null ? 'unread' : p.unit.kind === 'ondo-svalue' ? 'sValue' : 'computed',
       ),
     );
   }

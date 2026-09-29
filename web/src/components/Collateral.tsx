@@ -48,7 +48,7 @@ function Warning({ p }: { p: CollateralPosition }) {
         </div>
         <div>
           <div className="eyebrow">{p.side === 'borrow' ? 'Owed in shares' : 'You own'}</div>
-          <div className="v share-v">{amount(p.shareEq, 4)} share-eq</div>
+          <div className="v share-v">{p.shareEq === null ? 'not read' : `${amount(p.shareEq, 4)} share-eq`}</div>
         </div>
         <div>
           <div className="eyebrow">Multiplier</div>

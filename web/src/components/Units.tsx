@@ -9,6 +9,11 @@ export function Units() {
       </div>
 
       <div className="prose">
+        <p className="lead-statement">Your wallet counts tokens. Shaddai counts shares.</p>
+        <p>
+          After a dividend the contract keeps the same raw number and raises a multiplier. The extra amount is the
+          reinvested dividend after withholding. It is not a glitch and it is not cash you can spend.
+        </p>
         <p>
           A tokenized stock contract stores a raw balance per holder. When the company pays a dividend or splits, most
           issuers do not mint or send you anything. They change a factor that says how many shares one raw token stands

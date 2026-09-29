@@ -71,7 +71,7 @@ function driftLines(p: TokenProbe, severity: Severity): string[] {
   const m = p.mult ?? ONE;
   if (p.unit.kind === 'none') {
     return [
-      'No multiplier interface answered on this token, so Shaddai cannot size the drift. Treat displayed units as unverified.',
+      `${p.unit.unreadReason ?? 'The share factor for this token was not read.'} Shaddai cannot size the drift between protocol units and shares.`,
     ];
   }
   if (severity === 'alert') {
@@ -218,7 +218,7 @@ async function venusScan(input: CollateralInput, out: CollateralOutput) {
     const probe = input.probes.get(u);
     if (!probe) return;
     const raw = (vBal * exRate) / ONE;
-    const shareEq = probe.mult !== null ? toUI(raw, probe.mult) : raw;
+    const shareEq = probe.mult !== null ? toUI(raw, probe.mult) : null;
     const dec = probe.unit.decimals;
     const vSym = ok<string>(sym) ?? `v${token.symbol}`;
     const { severity, reasons } = severityFor(probe);
@@ -229,7 +229,7 @@ async function venusScan(input: CollateralInput, out: CollateralOutput) {
     const lines = [
       `${token.symbol} on this address is supplied to Venus (${vSym} ${short(v)}).`,
       'Venus reads the ERC-20 balance, not balanceOfUI.',
-      `Current raw: ${fmtAmount(raw, dec)} · multiplier: ${probe.mult !== null ? fmtMultiplier(probe.mult) : 'none found'} · share-eq: ${fmtAmount(shareEq, dec)}.`,
+      `Current raw: ${fmtAmount(raw, dec)} · multiplier: ${probe.mult !== null ? fmtMultiplier(probe.mult) : 'not read'} · share-eq: ${shareEq === null ? 'not read' : fmtAmount(shareEq, dec)}.`,
       ...driftLines(probe, severity),
     ];
     if (entered === false) lines.push('Supplied but not enabled as collateral (checkMembership is false).');
@@ -239,7 +239,7 @@ async function venusScan(input: CollateralInput, out: CollateralOutput) {
       side: entered === false ? 'lend' : 'collateral',
       market: { label: vSym, address: v, url: LINKS.bscscanAddress(v) },
       raw: fmtAmount(raw, dec, dec, 0),
-      shareEq: fmtAmount(shareEq, dec, dec, 0),
+      shareEq: shareEq === null ? null : fmtAmount(shareEq, dec, dec, 0),
       multiplier: probe.unit.multiplier,
       enteredAsCollateral: entered,
       hasBorrow: null,
@@ -300,20 +300,20 @@ async function listaScan(input: CollateralInput, out: CollateralOutput) {
     verified++;
     const [supplyShares, borrowShares, collateral] = pos;
     const market = { label: `Market ${short(id)}`, id, url: `https://lista.org/lending/market/bsc/${id}` };
-    const multLabel = (p: TokenProbe) => (p.mult !== null ? fmtMultiplier(p.mult) : 'none found');
+    const multLabel = (p: TokenProbe) => (p.mult !== null ? fmtMultiplier(p.mult) : 'not read');
 
     // Collateral side: the address owns these tokens, the market counts them raw.
     const cProbe = registry.has(collateralToken) ? input.probes.get(collateralToken) : undefined;
     if (cProbe && collateral > 0n) {
       const token = registry.get(collateralToken)!;
       const dec = cProbe.unit.decimals;
-      const shareEq = cProbe.mult !== null ? toUI(collateral, cProbe.mult) : collateral;
+      const shareEq = cProbe.mult !== null ? toUI(collateral, cProbe.mult) : null;
       const { severity, reasons } = severityFor(cProbe);
       const hasBorrow = borrowShares > 0n;
       const lines = [
         `${token.symbol} on this address is posted as collateral on Lista Lending (market ${short(id)}).`,
         'Lista reads the ERC-20 balance, not balanceOfUI.',
-        `Current raw: ${fmtAmount(collateral, dec)} · multiplier: ${multLabel(cProbe)} · share-eq: ${fmtAmount(shareEq, dec)}.`,
+        `Current raw: ${fmtAmount(collateral, dec)} · multiplier: ${multLabel(cProbe)} · share-eq: ${shareEq === null ? 'not read' : fmtAmount(shareEq, dec)}.`,
         ...driftLines(cProbe, severity),
       ];
       if (hasBorrow) lines.push('This market position has an open borrow.');
@@ -323,7 +323,7 @@ async function listaScan(input: CollateralInput, out: CollateralOutput) {
         side: 'collateral',
         market,
         raw: fmtAmount(collateral, dec, dec, 0),
-        shareEq: fmtAmount(shareEq, dec, dec, 0),
+        shareEq: shareEq === null ? null : fmtAmount(shareEq, dec, dec, 0),
         multiplier: cProbe.unit.multiplier,
         enteredAsCollateral: true,
         hasBorrow,
@@ -344,14 +344,14 @@ async function listaScan(input: CollateralInput, out: CollateralOutput) {
       const noBorrowAdvice = (l: string) => !l.includes('add borrow');
       if (supplyShares > 0n) {
         const raw = sharesToAssetsDown(supplyShares, totalSupplyAssets, totalSupplyShares);
-        const shareEq = lProbe.mult !== null ? toUI(raw, lProbe.mult) : raw;
+        const shareEq = lProbe.mult !== null ? toUI(raw, lProbe.mult) : null;
         out.positions.push({
           token: tokenRef(token),
           protocol: 'Lista',
           side: 'lend',
           market,
           raw: fmtAmount(raw, dec, dec, 0),
-          shareEq: fmtAmount(shareEq, dec, dec, 0),
+          shareEq: shareEq === null ? null : fmtAmount(shareEq, dec, dec, 0),
           multiplier: lProbe.unit.multiplier,
           enteredAsCollateral: false,
           hasBorrow: null,
@@ -360,7 +360,7 @@ async function listaScan(input: CollateralInput, out: CollateralOutput) {
           lines: [
             `${token.symbol} on this address is lent out on Lista Lending (market ${short(id)}).`,
             'The market counts what you supplied in raw ERC-20 units, not balanceOfUI.',
-            `Supplied raw: ${fmtAmount(raw, dec)} · multiplier: ${multLabel(lProbe)} · share-eq: ${fmtAmount(shareEq, dec)} (as of the market's last interest accrual).`,
+            `Supplied raw: ${fmtAmount(raw, dec)} · multiplier: ${multLabel(lProbe)} · share-eq: ${shareEq === null ? 'not read' : fmtAmount(shareEq, dec)} (as of the market's last interest accrual).`,
             ...driftLines(lProbe, severity).filter(noBorrowAdvice),
           ],
           oracle: null,
@@ -368,14 +368,14 @@ async function listaScan(input: CollateralInput, out: CollateralOutput) {
       }
       if (borrowShares > 0n) {
         const raw = sharesToAssetsUp(borrowShares, totalBorrowAssets, totalBorrowShares);
-        const shareEq = lProbe.mult !== null ? toUI(raw, lProbe.mult) : raw;
+        const shareEq = lProbe.mult !== null ? toUI(raw, lProbe.mult) : null;
         out.positions.push({
           token: tokenRef(token),
           protocol: 'Lista',
           side: 'borrow',
           market,
           raw: fmtAmount(raw, dec, dec, 0),
-          shareEq: fmtAmount(shareEq, dec, dec, 0),
+          shareEq: shareEq === null ? null : fmtAmount(shareEq, dec, dec, 0),
           multiplier: lProbe.unit.multiplier,
           enteredAsCollateral: null,
           hasBorrow: true,
@@ -384,7 +384,7 @@ async function listaScan(input: CollateralInput, out: CollateralOutput) {
           lines: [
             `This address has borrowed ${token.symbol} on Lista Lending (market ${short(id)}) and owes it back in raw tokens.`,
             'Each multiplier increase makes every raw token worth more, including the ones owed, so a borrower pays the reinvested dividend.',
-            `Owed raw: ${fmtAmount(raw, dec)} · multiplier: ${multLabel(lProbe)} · owed share-eq: ${fmtAmount(shareEq, dec)} (as of the market's last interest accrual).`,
+            `Owed raw: ${fmtAmount(raw, dec)} · multiplier: ${multLabel(lProbe)} · owed share-eq: ${shareEq === null ? 'not read' : fmtAmount(shareEq, dec)} (as of the market's last interest accrual).`,
             ...driftLines(lProbe, severity).filter(noBorrowAdvice),
           ],
           oracle: null,
@@ -459,7 +459,7 @@ async function lpScan(input: CollateralInput, out: CollateralOutput) {
       const raw = (reserve * lpBal.get(e.pool.pair)!) / supply;
       if (raw === 0n) return;
       const dec = probe.unit.decimals;
-      const shareEq = probe.mult !== null ? toUI(raw, probe.mult) : raw;
+      const shareEq = probe.mult !== null ? toUI(raw, probe.mult) : null;
       const { severity, reasons } = severityFor(probe);
       const dexName = e.pool.dex === 'pancakeswap' ? 'PancakeSwap V2' : `${e.pool.dex} (V2-style)`;
       found++;
@@ -473,7 +473,7 @@ async function lpScan(input: CollateralInput, out: CollateralOutput) {
           url: e.pool.url ?? LINKS.bscscanAddress(e.pool.pair),
         },
         raw: fmtAmount(raw, dec, dec, 0),
-        shareEq: fmtAmount(shareEq, dec, dec, 0),
+        shareEq: shareEq === null ? null : fmtAmount(shareEq, dec, dec, 0),
         multiplier: probe.unit.multiplier,
         enteredAsCollateral: null,
         hasBorrow: null,
@@ -482,7 +482,7 @@ async function lpScan(input: CollateralInput, out: CollateralOutput) {
         lines: [
           `${token.symbol} on this address sits in a ${dexName} pool (${short(e.pool.pair)}).`,
           'The pool holds raw tokens and its price is per raw token; your LP balance says nothing about the multiplier.',
-          `Your share of the pool: ${fmtAmount(raw, dec)} raw · multiplier: ${probe.mult !== null ? fmtMultiplier(probe.mult) : 'none found'} · share-eq: ${fmtAmount(shareEq, dec)}.`,
+          `Your share of the pool: ${fmtAmount(raw, dec)} raw · multiplier: ${probe.mult !== null ? fmtMultiplier(probe.mult) : 'not read'} · share-eq: ${shareEq === null ? 'not read' : fmtAmount(shareEq, dec)}.`,
           ...driftLines(probe, severity).filter((l) => !l.includes('borrow')),
         ],
         oracle: null,
@@ -506,12 +506,14 @@ function listings(input: CollateralInput, out: CollateralOutput) {
     const mark = input.marks.get(t.address);
     const dust = mark ? fixedToNumber(p.raw, dec) * mark.rawUsd < 1 : p.raw < 10n ** BigInt(Math.max(dec - 6, 0));
     if (dust) continue;
-    const ui = fmtAmount(p.shareEq, dec);
+    const ui = p.shareEq === null ? null : fmtAmount(p.shareEq, dec);
     const raw = fmtAmount(p.raw, dec);
     const counts = (proto: string) =>
-      p.mult === null || p.mult === ONE
-        ? `${proto} will count ${raw} tokens. That equals ${ui} share-equivalents only while the multiplier stays at 1.0.`
-        : `${proto} will count ${raw} tokens, not ${ui} share-equivalents.`;
+      ui === null
+        ? `${proto} will count ${raw} tokens. Their share-equivalent was not read.`
+        : p.mult === ONE
+          ? `${proto} will count ${raw} tokens. That equals ${ui} share-equivalents only while the multiplier stays at 1.0.`
+          : `${proto} will count ${raw} tokens, not ${ui} share-equivalents.`;
     if (out.venusMarkets.has(t.address) && !supplied.has(`Venus:${t.address}`)) {
       out.listings.push({
         token: tokenRef(t),

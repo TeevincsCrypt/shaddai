@@ -1,7 +1,8 @@
 const DEFAULT_LINKS: Record<string, string> = {
   bep677: 'https://github.com/bnb-chain/BEPs/blob/master/BEPs/BEP-677.md',
   erc8056: 'https://eips.ethereum.org/EIPS/eip-8056',
-  bstocks: 'https://x.com/bstocksfinance',
+  bstocks: 'https://www.bstocks.finance/en',
+  bstocksProof: 'https://www.binance.com/en/proof-of-collateral/bstocks',
   ondo: 'https://ondo.finance/ondo-stocks',
   xstocks: 'https://xstocks.fi',
   venus: 'https://app.venus.io',
@@ -10,6 +11,7 @@ const DEFAULT_LINKS: Record<string, string> = {
 
 const LABELS: Record<string, string> = {
   bstocks: 'bStocks',
+  bstocksProof: 'bStocks proof of collateral',
   ondo: 'Ondo Global Markets',
   xstocks: 'xStocks',
   bep677: 'BEP-677 spec',

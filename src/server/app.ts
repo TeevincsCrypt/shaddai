@@ -49,6 +49,7 @@ export function createApp(deps: AppDeps) {
         bep677: LINKS.bep677,
         erc8056: LINKS.erc8056,
         bstocks: LINKS.bstocks,
+        bstocksProof: LINKS.bstocksProof,
         ondo: LINKS.ondo,
         xstocks: LINKS.xstocks,
         venus: LINKS.venus,

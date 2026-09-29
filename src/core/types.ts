@@ -49,6 +49,8 @@ export interface UnitModel {
   symbolMismatch: boolean;
   decimals: number;
   supportsScaledUiInterface: boolean | null;
+  /** Set when no share factor could be read; share-equivalents are then shown as not read. */
+  unreadReason: string | null;
   notes: string[];
 }
 
@@ -69,10 +71,11 @@ export interface PortfolioRow {
   token: TokenRef;
   location: { kind: LocationKind; label: string; contract?: Address; url?: string };
   raw: string;
-  shareEq: string;
-  shareEqSource: 'balanceOfUI' | 'computed' | 'sValue' | 'raw';
+  /** Null when the share factor was not read. */
+  shareEq: string | null;
+  shareEqSource: 'balanceOfUI' | 'computed' | 'sValue' | 'unread';
   /** shareEq - raw, in share-equivalents. */
-  drift: string;
+  drift: string | null;
   multiplier: string | null;
   price: Price | null;
   positionUsd: number | null;
@@ -130,7 +133,7 @@ export interface CollateralPosition {
   side: 'collateral' | 'lend' | 'borrow' | 'lp';
   market: { label: string; address?: Address; id?: Hex; url?: string };
   raw: string;
-  shareEq: string;
+  shareEq: string | null;
   multiplier: string | null;
   enteredAsCollateral: boolean | null;
   hasBorrow: boolean | null;

@@ -112,7 +112,7 @@ export async function scanAddress(
             : 'unavailable',
       detail: ctx.ondoOracle
         ? `SyntheticSharesOracle ${ctx.ondoOracle}: ${st.filter((s) => s === 'ok').length}/${ondoTokens.length} assets answered getSValue().`
-        : 'ONDO_SSO_ADDRESS not configured; Ondo rows use the wallet multiplier if one exists, else 1:1.',
+        : 'No Ondo oracle configured; Ondo share-equivalents are shown as not read.',
     });
   }
 

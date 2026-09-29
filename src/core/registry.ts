@@ -111,8 +111,22 @@ export const ONDO_SSO_KNOWN: Address = getAddress('0xF4Fd8a1B412633e10527454137A
 export const LISTA_MOOLAH: Address = getAddress('0x8F73b65B4caAf64FBA2aF91cC5D4a2A1318E5D8C');
 export const LISTA_API_BASE = 'https://api.lista.org';
 
-/** Tickers announced as Lista Lending collateral. Used when market discovery is unavailable. */
-export const LISTA_LISTED_SYMBOLS = new Set(['NVDAB', 'TSLAB', 'CRCLB', 'MUB', 'GOOGLB', 'AAPLB', 'MSFTB', 'QQQB']);
+/**
+ * Tickers announced as Lista Lending collateral, used when market discovery is unavailable.
+ * QQQB has no confirmed contract address yet, so it can only match an extra token.
+ */
+export const LISTA_LISTED_SYMBOLS = new Set([
+  'CRCLB',
+  'MUB',
+  'NVDAB',
+  'SNDKB',
+  'TSLAB',
+  'SPCXB',
+  'GOOGLB',
+  'AAPLB',
+  'MSFTB',
+  'QQQB',
+]);
 
 export const MULTICALL3: Address = getAddress('0xcA11bde05977b3631167028862bE2a173976CA11');
 
@@ -128,7 +142,8 @@ export const DEFAULT_RPC_URLS = [
 export const LINKS = {
   bep677: 'https://github.com/bnb-chain/BEPs/blob/master/BEPs/BEP-677.md',
   erc8056: 'https://eips.ethereum.org/EIPS/eip-8056',
-  bstocks: 'https://x.com/bstocksfinance',
+  bstocks: 'https://www.bstocks.finance/en',
+  bstocksProof: 'https://www.binance.com/en/proof-of-collateral/bstocks',
   ondo: 'https://ondo.finance/ondo-stocks',
   xstocks: 'https://xstocks.fi',
   venus: 'https://app.venus.io',

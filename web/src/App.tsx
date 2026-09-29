@@ -136,6 +136,7 @@ export function App() {
           ) : config ? (
             <span className="badge live">BSC mainnet</span>
           ) : null}
+          <ThemeToggle />
         </div>
       </header>
 
@@ -189,5 +190,30 @@ export function App() {
 
       <Footer links={config?.links} />
     </>
+  );
+}
+
+/** Dark desk by default; the choice is remembered per browser. */
+function ThemeToggle() {
+  const [theme, setTheme] = useState(() => document.documentElement.dataset.theme ?? 'dark');
+  const flip = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    try {
+      localStorage.setItem('shaddai.theme', next);
+    } catch {
+      /* storage unavailable: the choice lasts for this visit */
+    }
+    setTheme(next);
+  };
+  return (
+    <button
+      type="button"
+      className="theme-toggle"
+      onClick={flip}
+      aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+    >
+      {theme === 'dark' ? 'Light' : 'Dark'}
+    </button>
   );
 }

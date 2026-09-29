@@ -14,8 +14,9 @@ export interface TokenProbe {
   raw: bigint;
   /** Contract's own balanceOfUI(holder), if exposed. */
   balanceOfUI: bigint | null;
-  shareEq: bigint;
-  shareEqSource: 'balanceOfUI' | 'computed' | 'sValue' | 'raw';
+  /** Null when no share factor could be read. Never defaulted to raw. */
+  shareEq: bigint | null;
+  shareEqSource: 'balanceOfUI' | 'computed' | 'sValue' | 'unread';
   readable: boolean;
 }
 
@@ -186,8 +187,8 @@ export async function probeTokens(
       );
     }
 
-    let shareEq = raw;
-    let shareEqSource: TokenProbe['shareEqSource'] = 'raw';
+    let shareEq: bigint | null = null;
+    let shareEqSource: TokenProbe['shareEqSource'] = 'unread';
     const bUI = val<bigint>(r.balanceOfUI) ?? null;
     if (kind === 'bep677' && mult !== null) {
       const computed = toUI(raw, mult);
@@ -205,12 +206,20 @@ export async function probeTokens(
       shareEq = toUI(raw, mult);
       shareEqSource = 'sValue';
     }
+    let unreadReason: string | null = null;
     if (kind === 'none' && readable) {
-      notes.push(
-        ondo?.status === 'not-configured'
-          ? 'No wallet multiplier and no Ondo oracle configured (ONDO_SSO_ADDRESS): 1 token is shown as 1 share, unverified.'
-          : 'No multiplier found: 1 token is treated as 1 share, unverified.',
-      );
+      if (tk.model === 'ondo') {
+        const why =
+          ondo?.status === 'not-configured'
+            ? 'no Ondo oracle configured'
+            : 'the Ondo oracle did not return an sValue for this asset';
+        unreadReason = `Ondo total-return factor not read (${why}). Do not treat 1 token as 1 share.`;
+      } else if (tk.model === 'xstocks') {
+        unreadReason = 'Display factor not on this token. Shaddai does not invent one.';
+      } else {
+        unreadReason = 'uiMultiplier() did not answer, so share-equivalents were not read.';
+      }
+      notes.push(unreadReason);
     }
 
     out.set(tk.address, {
@@ -232,6 +241,7 @@ export async function probeTokens(
         symbolMismatch,
         decimals,
         supportsScaledUiInterface: supports,
+        unreadReason,
         notes,
       },
     });
