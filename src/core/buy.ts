@@ -796,13 +796,18 @@ export async function diagnoseBuy(ctx: ShaddaiContext, region: string | null) {
     }),
   ];
   const refused = steps.filter((s) => !s.ok && Number(s.code) === COMPLIANCE_CODE).map((s) => s.name);
+  const unreachable = steps.filter((s) => !s.ok && /network error/.test(s.detail)).length;
   const reading =
-    refused.length === 0
-      ? 'No compliance refusals.'
-      : refused.length === steps.length
-        ? 'Every call is refused, including market data: the refusal is about where the server runs or the API key account, not the token.'
-        : refused.every((n) => n.includes('NVDAB'))
-          ? 'Only the equity-token quote is refused: tokenized stocks are restricted for this server location or account; other services work.'
-          : 'Some calls are refused; see each step.';
+    unreachable === steps.length
+      ? 'The Binance Web3 API could not be reached from this machine (network error on every call), so nothing was learned about compliance. See each step for the reason.'
+      : refused.length === 0
+        ? steps.every((s) => s.ok)
+          ? 'Every call succeeded: no compliance refusals.'
+          : 'No compliance refusals, but some calls failed; see each step.'
+        : refused.length === steps.length
+          ? 'Every call is refused, including market data: the refusal is about where the server runs or the API key account, not the token.'
+          : refused.every((n) => n.includes('NVDAB'))
+            ? 'Only the equity-token quote is refused: tokenized stocks are restricted for this server location or account; other services work.'
+            : 'Some calls are refused; see each step.';
   return { region, api: cfg.api.label, quoteWallet: Boolean(cfg.quoteWallet), steps, reading };
 }
