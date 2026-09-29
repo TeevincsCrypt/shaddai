@@ -81,9 +81,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     scanFromBlock: env.SHADDAI_SCAN_FROM_BLOCK ? BigInt(env.SHADDAI_SCAN_FROM_BLOCK) : null,
     scanFromDate: env.SHADDAI_SCAN_FROM_DATE ?? '2026-05-01',
     logChunk: Number(env.SHADDAI_LOG_CHUNK ?? 50_000),
-    // Env var wins; then what this deploy's discovery verified; then the pinned mainnet address.
-    ondoOracle: ondo ? getAddress(ondo.toLowerCase()) : (discovered ?? ONDO_SSO_KNOWN),
-    ondoOracleSource: ondo ? 'env' : discovered ? 'discovered' : 'registry',
+    // Env var wins; then what this deploy's discovery settled (possibly none); then the pinned address.
+    ondoOracle: ondo ? getAddress(ondo.toLowerCase()) : discovered?.ran ? discovered.found : ONDO_SSO_KNOWN,
+    ondoOracleSource: ondo ? 'env' : discovered?.ran ? (discovered.found ? 'discovered' : null) : 'registry',
     listaMarketIds: ids as Hex[],
     extraTokens,
     // Serverless file systems are read-only except /tmp.
@@ -95,13 +95,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
 
 export const ONDO_DISCOVERY_FILE = 'ondo-oracle.json';
 
-/** Oracle address found and verified by the deploy-time discovery, if any. */
-function readDiscoveredOracle(seedDir: string): Address | null {
+/**
+ * Result of the deploy-time Ondo discovery: `ran` is false when no discovery file
+ * shipped (local dev, or the env var was set), so the pinned address applies.
+ */
+function readDiscoveredOracle(seedDir: string): { ran: boolean; found: Address | null } {
   try {
     const r = JSON.parse(readFileSync(join(seedDir, ONDO_DISCOVERY_FILE), 'utf8')) as { found?: string | null };
-    return r.found && isAddress(r.found, { strict: false }) ? getAddress(r.found.toLowerCase()) : null;
+    const found = r.found && isAddress(r.found, { strict: false }) ? getAddress(r.found.toLowerCase()) : null;
+    return { ran: true, found };
   } catch {
-    return null;
+    return { ran: false, found: null };
   }
 }
 
@@ -143,7 +147,14 @@ export function createLiveContext(
     venus: { comptroller: VENUS_COMPTROLLER, known: VENUS_KNOWN_VTOKENS },
     lista: { moolah: LISTA_MOOLAH, source: new ListaApiSource(LISTA_API_BASE), extraMarketIds: cfg.listaMarketIds },
     ondoOracle: cfg.ondoOracle,
-    feed: new FeedIndexer(chain, tokens, kv, startBlockFor(chain, cfg.scanFromBlock, cfg.scanFromDate), 'feed-bsc'),
+    feed: new FeedIndexer(
+      chain,
+      tokens,
+      kv,
+      startBlockFor(chain, cfg.scanFromBlock, cfg.scanFromDate),
+      'feed-bsc',
+      cfg.ondoOracle,
+    ),
     rawAt: { maxLogs: cfg.maxReplayLogs },
     ledgerBudgetMs: 12_000,
     background,
@@ -196,6 +207,7 @@ export function demoContext(frozenAt?: number): ShaddaiContext {
       new MemoryKV(),
       async () => fake.blockAt(Date.UTC(2026, 4, 1) / 1000),
       'feed-demo',
+      DEMO_ONDO_ORACLE,
     ),
     ledgerBudgetMs: 15_000,
   };

@@ -152,6 +152,13 @@ export function Ledger({ result }: { result: ScanResult }) {
             </div>
           ) : null}
           {ledger.status === 'ready' && ledger.error ? <p className="error">{ledger.error}</p> : null}
+          {ledger.status === 'ready' && ledger.notices?.length
+            ? ledger.notices.map((n) => (
+                <p key={n} className="small" style={{ color: 'var(--watch)' }}>
+                  {n}
+                </p>
+              ))
+            : null}
           {ledger.status === 'ready' && rows.length === 0 ? (
             <div className="empty">
               <strong>No multiplier events touched the tokens on this address.</strong>
@@ -351,6 +358,9 @@ function FeedTable(props: {
                       </a>
                     )}
                     {e.eventLayout === 'variant-4' ? <span className="muted"> · 4-field event</span> : null}
+                    {e.eventLayout === 'ondo-svalue' ? (
+                      <span className="muted"> · Ondo sValue, applied in this block</span>
+                    ) : null}
                   </td>
                 </tr>
               ))}

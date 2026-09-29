@@ -158,9 +158,16 @@ export async function scanAddress(
       protocolExposure: exposure,
       rawAt: ctx.rawAt,
     });
+    const notices: string[] = [];
+    if (ctx.feed.ondoUnresolved) {
+      notices.push(
+        `${ctx.feed.ondoUnresolved} Ondo sValue update(s) could not be read: old and new values need historical (archive) state from the RPC endpoint.`,
+      );
+    }
     return {
       status: 'ready',
       rows,
+      notices,
       error: stale,
       scannedFrom: snap.scannedFrom?.toString(),
       scannedTo: snap.scannedTo?.toString(),

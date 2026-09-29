@@ -87,6 +87,16 @@ describe('demo scan (end to end on the fixture chain)', async () => {
     expect(r.collateral.positions[0]!.severity).toBe('alert');
   });
 
+  it('ledgers Ondo sValue changes read from the oracle', () => {
+    const ondo = r.ledger.rows.filter((l) => l.token.symbol === 'NVDAon').sort((x, y) => x.effectiveAt - y.effectiveAt);
+    expect(ondo.map((l) => [l.oldMultiplier, l.newMultiplier, l.rawAtEvent, l.deltaShareEq, l.eventLayout])).toEqual([
+      ['1', '1.0009', '0', '0', 'ondo-svalue'], // before the demo address held NVDAon
+      ['1.0009', '1.0021', '5', '0.006', 'ondo-svalue'],
+    ]);
+    expect(ondo[1]!.effectiveBlock).toBe(ondo[1]!.scheduledBlock); // applies in the block it is written
+    expect(ondo[1]!.notes.join(' ')).toMatch(/the token contract emitted nothing/);
+  });
+
   it('reads Lista lending and borrowing, not only collateral', () => {
     const lend = r.collateral.positions.find((p) => p.protocol === 'Lista' && p.side === 'lend')!;
     expect(lend).toMatchObject({ raw: '2', shareEq: '2.0034', severity: 'info' });
@@ -109,9 +119,13 @@ describe('demo scan (end to end on the fixture chain)', async () => {
     const csv = ledgerToCsv(r.ledger.rows, { demo: true });
     const lines = csv.trim().split('\r\n');
     expect(lines[0]).toBe(CSV_COLUMNS.join(','));
-    expect(lines).toHaveLength(1 + r.ledger.rows.filter((l) => l.status !== 'overwritten').length);
+    const exported = r.ledger.rows.filter(
+      (l) => l.status !== 'overwritten' && !(l.status === 'effective' && l.rawAtEvent === '0'),
+    );
+    expect(lines).toHaveLength(1 + exported.length);
     expect(csv).toContain('DEMO FIXTURE, not on-chain data');
-    expect(csv).not.toContain('1.0021,');
+    // The overwritten MSFTB schedule (to 1.0021) is not exported.
+    expect(csv).not.toMatch(/MSFTB,0x[0-9a-fA-F]+,[^,]*,[^,]*,1\.0021,/);
     expect(lines.at(-1)).toMatch(/,pending,bStocks,MSFTB,/);
   });
 
@@ -141,15 +155,29 @@ describe('same ledger without archive access', async () => {
     const pruned = {
       ...ctx,
       chain,
-      feed: new FeedIndexer(chain, ctx.tokens, new MemoryKV(), async () => fake.blockAt(Date.UTC(2026, 4, 1) / 1000)),
+      feed: new FeedIndexer(
+        chain,
+        ctx.tokens,
+        new MemoryKV(),
+        async () => fake.blockAt(Date.UTC(2026, 4, 1) / 1000),
+        'feed-pruned',
+        ctx.ondoOracle,
+      ),
     };
     const a = await scanAddress(ctx, DEMO_ADDRESS);
     const b = await scanAddress(pruned, DEMO_ADDRESS);
     const pick = (rows: typeof a.ledger.rows) =>
       rows.map((x) => [x.id, x.rawAtEvent, x.deltaShareEq]).sort((p, q) => String(p[0]).localeCompare(String(q[0])));
-    expect(pick(b.ledger.rows)).toEqual(pick(a.ledger.rows));
-    expect(b.ledger.rows.filter((x) => x.status === 'effective').every((x) => x.rawAtEventSource === 'replay')).toBe(
-      true,
-    );
+    // bStock rows: Transfer replay gives the same balances as archive reads.
+    const bstock = (rows: typeof a.ledger.rows) => rows.filter((x) => x.eventLayout !== 'ondo-svalue');
+    expect(pick(bstock(b.ledger.rows))).toEqual(pick(bstock(a.ledger.rows)));
+    expect(
+      bstock(b.ledger.rows)
+        .filter((x) => x.status === 'effective')
+        .every((x) => x.rawAtEventSource === 'replay'),
+    ).toBe(true);
+    // Ondo sValue history needs archive state; without it the ledger says so instead of guessing.
+    expect(b.ledger.rows.some((x) => x.eventLayout === 'ondo-svalue')).toBe(false);
+    expect(b.ledger.notices?.join(' ')).toMatch(/2 Ondo sValue update\(s\) could not be read/);
   });
 });

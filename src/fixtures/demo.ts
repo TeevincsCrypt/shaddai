@@ -245,6 +245,11 @@ export function buildDemoScenario(
     ],
     ondoOracle: {
       address: DEMO_ONDO_ORACLE,
+      // NVDAon's total-return factor ticks twice: once before the demo address held it, once after.
+      history: [
+        { block: blockAt(d('2026-07-03T13:30:00Z')), asset: bySymbol('NVDAon'), sValue: u('1.0009') },
+        { block: blockAt(d('2026-09-11T13:30:00Z')), asset: bySymbol('NVDAon'), sValue: u('1.0021') },
+      ],
       values: new Map(Object.entries(sValues).map(([s, v]) => [bySymbol(s), { sValue: u(v), paused: false }])),
     },
   };

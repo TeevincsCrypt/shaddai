@@ -102,7 +102,8 @@ export interface MultiplierEvent {
   effectiveAt: number;
   /** First block with timestamp >= effectiveAt; null while pending or unresolved. */
   effectiveBlock: string | null;
-  eventLayout: 'bep677-3' | 'variant-4';
+  /** bep677-3 / variant-4: decoded UIMultiplierUpdated. ondo-svalue: getSValue read before and after an oracle log. */
+  eventLayout: 'bep677-3' | 'variant-4' | 'ondo-svalue';
 }
 
 export type RawAtEventSource = 'archive' | 'replay' | 'assumed-current' | 'unavailable';
@@ -159,6 +160,8 @@ export interface CheckStatus {
 export interface LedgerSection {
   status: 'ready' | 'indexing' | 'unavailable';
   rows: LedgerRow[];
+  /** Things the reader should know about coverage (e.g. Ondo updates not readable without archive state). */
+  notices?: string[];
   progress?: number;
   error?: string;
   scannedFrom?: string;
