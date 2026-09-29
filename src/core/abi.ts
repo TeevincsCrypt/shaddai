@@ -7,8 +7,12 @@ export const erc20Abi = parseAbi([
   'function symbol() view returns (string)',
   'function name() view returns (string)',
   'function totalSupply() view returns (uint256)',
+  'function allowance(address owner, address spender) view returns (uint256)',
   'event Transfer(address indexed from, address indexed to, uint256 value)',
 ]);
+
+/** Only used to check approve calldata an API hands back before a wallet sees it. */
+export const approveAbi = parseAbi(['function approve(address spender, uint256 amount) returns (bool)']);
 
 /**
  * BEP-677 / ERC-8056 Scaled UI Amount, as implemented in

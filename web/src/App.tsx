@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, type AppConfigResponse, type ScanResult } from './api';
+import { Buy } from './components/Buy';
 import { Collateral } from './components/Collateral';
 import { Explainer } from './components/Explainer';
 import { Footer } from './components/Footer';
@@ -10,13 +11,16 @@ import { Portfolio } from './components/Portfolio';
 import { StatementHead } from './components/StatementHead';
 import { Units } from './components/Units';
 
-export type Tab = 'portfolio' | 'ledger' | 'collateral' | 'units';
+export type Tab = 'portfolio' | 'ledger' | 'collateral' | 'buy' | 'units';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'portfolio', label: 'Portfolio' },
   { id: 'ledger', label: 'Ledger' },
   { id: 'collateral', label: 'Collateral' },
+  { id: 'buy', label: 'Buy' },
   { id: 'units', label: 'How units work' },
 ];
+/** Tabs that stand on their own, without a scanned address. */
+const STANDALONE: Tab[] = ['buy', 'units'];
 
 const tabFromHash = (): Tab => {
   const h = window.location.hash.replace('#', '');
@@ -101,7 +105,8 @@ export function App() {
   };
 
   const alerts = result?.collateral.positions.filter((p) => p.severity === 'alert').length ?? 0;
-  const showLanding = !result && tab !== 'units';
+  const standalone = STANDALONE.includes(tab);
+  const showLanding = !result && !standalone;
 
   return (
     <>
@@ -136,6 +141,7 @@ export function App() {
           ) : config ? (
             <span className="badge live">BSC mainnet</span>
           ) : null}
+          <ThemeToggle />
         </div>
       </header>
 
@@ -148,12 +154,12 @@ export function App() {
         </div>
       ) : null}
 
-      {result && tab !== 'units' ? <Explainer /> : null}
+      {result && !standalone ? <Explainer /> : null}
 
       <main>
         {showLanding ? <Landing config={config} onScan={scan} busy={pendingAddress !== null} error={error} /> : null}
 
-        {result && tab !== 'units' ? (
+        {result && !standalone ? (
           <>
             <div className="wrap">
               <StatementHead result={result} onTab={go} />
@@ -185,9 +191,40 @@ export function App() {
             <Units />
           </div>
         ) : null}
+
+        {tab === 'buy' ? (
+          <div className="wrap">
+            <Buy demo={result?.mode === 'demo' || config?.mode === 'demo'} demoAddress={config?.demoAddress} />
+          </div>
+        ) : null}
       </main>
 
       <Footer links={config?.links} />
     </>
+  );
+}
+
+/** Dark desk by default; the choice is remembered per browser. */
+function ThemeToggle() {
+  const [theme, setTheme] = useState(() => document.documentElement.dataset.theme ?? 'dark');
+  const flip = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    try {
+      localStorage.setItem('shaddai.theme', next);
+    } catch {
+      /* storage unavailable: the choice lasts for this visit */
+    }
+    setTheme(next);
+  };
+  return (
+    <button
+      type="button"
+      className="theme-toggle"
+      onClick={flip}
+      aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+    >
+      {theme === 'dark' ? 'Light' : 'Dark'}
+    </button>
   );
 }

@@ -12,7 +12,14 @@ Paste a BSC address and Shaddai returns three things:
 3. **Collateral warning.** If the tokens are supplied to Venus, posted on Lista, or sitting in an LP, a severity-graded
    warning that the protocol counts raw ERC-20 units, not `balanceOfUI`.
 
-It does not swap, trade or sign anything. It reads.
+And one way to act on it:
+
+4. **Share-true Buy.** Size a spot buy in dollars of shares; every wrapper of the ticker is quoted and ranked by the
+   share-equivalents you would own, thin books are refused, and your own wallet approves and signs. See
+   [Buy](#buy).
+
+The first three tabs only read. Buy is off unless the server has a Binance Web3 API key, and even then Shaddai never
+holds funds or keys: the user's wallet signs.
 
 ## Run it
 
@@ -81,9 +88,11 @@ exact historical read instead of a log replay.
 
 ### `SHADDAI_SCAN_FROM_BLOCK` (optional)
 
-Where the multiplier-event index starts. The first bStocks were deployed at block **102,441,229** (5 Jun 2026), so
-`102441000` covers everything in the built-in registry and skips about 6.8M empty blocks. Unset, the index starts at
-`SHADDAI_SCAN_FROM_DATE` (default `2026-05-01`), which only makes the first scan longer.
+Where the multiplier-event index starts. The first bStocks were deployed at block **102,441,229** (5 Jun 2026), but
+the index also records Ondo sValue updates, and Ondo's oracle can be older than that. So leave this unset: the index
+then starts at `SHADDAI_SCAN_FROM_DATE` (default `2026-05-01`, block 95.6M). `/api/status` shows `firstEventBlock` and
+`firstOndoEventBlock`; if the first Ondo event sits right at `scannedFrom`, move the date earlier. Set a block only if
+it is below both.
 
 If you add older tokens through `SHADDAI_EXTRA_TOKENS`, find each one's creation block on BscScan: open the token's
 address page, click the transaction next to **Contract Creator**, and copy its **Block**. Use the smallest. Registry
@@ -118,6 +127,20 @@ Locally it can also be a path to a JSON file.
 
 Markets are found through the Lista API. To pin one, open it on [lista.org/lending](https://lista.org/lending); the URL
 ends in its 66-character `0x…` id (for example `lista.org/lending/market/bsc/0x2bb6…c5ec`). Comma-separate several.
+
+### `BINANCE_WEB3_API_KEY` and `BINANCE_WEB3_API_SECRET` (optional, turn on Buy)
+
+Apply for a key on the [Binance Web3 API portal](https://web3.binance.com/en/dev-docs/introduction) (sign in with a
+Binance account or a wallet, bind a phone or email). Both values stay on the server; requests are signed there with
+HMAC-SHA256. Related settings:
+
+| Variable                     | Default      | Notes                                                                                        |
+| ---------------------------- | ------------ | -------------------------------------------------------------------------------------------- |
+| `SHADDAI_BUY_MAX_USD`        | `25`         | Largest ticket the server will quote or prepare. Keep it small for live runs.                |
+| `SHADDAI_BUY_MAX_IMPACT_PCT` | `1`          | Hard refusal above this price impact.                                                        |
+| `SHADDAI_BUY_SLIPPAGE_PCT`   | `0.5`        | Slippage passed to `/swap`.                                                                  |
+| `SHADDAI_QUOTE_WALLET`       | none         | Address used for quotes before a wallet connects; RFQ quotes for equity tokens want one.     |
+| `SHADDAI_USD1_ADDRESS`       | token search | Pins USD1. Otherwise found through the Market API and accepted only if `symbol()` says USD1. |
 
 ### Tuning and local-only variables
 
@@ -220,13 +243,104 @@ the CSV label it as demo data.
 
 ## API
 
-| Route                          | Returns                                                                                                                  |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| `GET /api/scan?address=0x…`    | Portfolio, ledger, collateral, checks. `address=demo` for the fixture.                                                   |
-| `GET /api/ledger.csv?address=` | `date, block, issuer, symbol, contract, raw_at_event, old_mult, new_mult, delta_share_eq, est_usd, note`                 |
-| `GET /api/feed`                | Global multiplier-event feed for the registry (`?demo=1` for the fixture).                                               |
-| `GET /api/status`              | Config facts (custom RPC set, snapshot shipped; never URLs or keys), index state, RPC endpoint health, request counters. |
-| `GET /api/config`              | Mode, demo address, live example addresses.                                                                              |
+| Route                          | Returns                                                                                                                                   |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/scan?address=0x…`    | Portfolio, ledger, collateral, checks. `address=demo` for the fixture.                                                                    |
+| `GET /api/ledger.csv?address=` | `date, block, issuer, symbol, contract, raw_at_event, old_mult, new_mult, delta_share_eq, est_usd, note`                                  |
+| `GET /api/feed`                | Global multiplier-event feed for the registry (`?demo=1` for the fixture).                                                                |
+| `GET /api/status`              | Config facts (custom RPC set, snapshot shipped; never URLs or keys), index state, RPC endpoint health, request counters.                  |
+| `GET /api/config`              | Mode, demo address, live example addresses.                                                                                               |
+| `POST /api/mcp`                | MCP over Streamable HTTP (stateless, JSON replies). See [MCP tools](#mcp-tools).                                                          |
+| `GET /api/preview?address=`    | Pre-action collateral preview: flips, oracle gaps, market hours, Binance DeFi cross-check. See [Pre-action preview](#pre-action-preview). |
+| `GET /api/buy/config`          | Whether Buy is on, limits, tickers and their wrappers.                                                                                    |
+| `GET /api/buy/diagnose`        | Server region and which Binance Web3 API calls succeed or are refused (for code 40304).                                                   |
+| `GET /api/buy/quote`           | `ticker`, `usd`, `payIn` (`USDT`/`USD1`), optional `wallet`. Share-true comparison; never trades.                                         |
+| `POST /api/buy/prepare`        | `{token, usd, payIn, wallet}` → the next step: checked approve plus dry run, or the EIP-712 order with its checks.                        |
+| `POST /api/buy/submit`         | `{requestId, signature, vendor, quoteId, signingScheme}` → forwards the signed order.                                                     |
+| `GET /api/buy/order/:id`       | Order status until `FILLED`, `FAILED`, `EXPIRED` or `CANCELLED`.                                                                          |
+
+## Buy
+
+A buy is sized in **dollars of shares**. For a ticker such as NVDA, Shaddai asks the Binance Web3 API for a quote on
+every wrapper (NVDAB, NVDAon) and ranks them by share-equivalents received: raw tokens out × the factor read on chain
+(`uiMultiplier()` for bStocks, Ondo `sValue`). A token-count comparison can pick the wrong wrapper; the quote says when
+it would. `fromUIAmount()` gives the raw amount that equals the share target, so each row also shows how much of the
+target the ticket fills after costs.
+
+A wrapper is **refused**, not quoted, when:
+
+- its factor was not read (Ondo: "Ondo total-return factor not read — do not treat 1 token as 1 share"; xStocks:
+  "Display factor not on this token — do not invent it");
+- the RWA Data API reports a halt (`ASSET_PAUSED` for a corporate action, market paused or in maintenance), or Ondo's
+  oracle is paused for it;
+- no route comes back;
+- the ticket moves the price more than 1%, measured against a probe quote at a tenth of the size (and the vendor's own
+  figure when it gives one). If depth cannot be measured at all, it is refused rather than assumed deep.
+
+Equity tokens settle as **RFQ orders** on the Binance Web3 API: one exact-amount approve (the calldata is decoded and
+checked, then dry-run through the Transaction API) and one EIP-712 order signature. Before the wallet is asked to sign,
+Shaddai checks that the order names the connected wallet and the chosen token on chain 56. The vendor settles on BSC and
+the tab polls the order until it is filled. There is no swap transaction to simulate for an RFQ order; the tab says so.
+
+Pay-in is USDT (`0x55d3…7955`, the chain-56 token in Binance's own API example) or USD1, which is looked up through the
+Market API's token search and used only if its contract answers `symbol() = "USD1"`.
+
+**If Buy says "compliance restriction (code 40304)".** Binance declined the request. It limits tokenized-stock services
+by jurisdiction, and the location of the server calling the API is one of the inputs. On Vercel, functions run in
+Washington, D.C. (`iad1`) unless the project picks another region. Open `/api/buy/diagnose`: it shows the region and
+which calls Binance refuses (all of them, or only the equity-token quote). If the team operates from a place where
+these products are offered, set the function region there (Vercel → Settings → Functions → Function Region, or
+`"regions"` in `vercel.json`) and redeploy. A region is not a way around a restriction that applies to you or your users.
+
+Spot only, BSC only. Live buys use small amounts from a wallet the team funds; the server caps each ticket
+(`SHADDAI_BUY_MAX_USD`). The demo runs the whole flow on a fixture API with signing disabled.
+
+## Pre-action preview
+
+At the top of the Collateral tab, before anyone posts, borrows or buys. For each protocol position, and each wallet
+holding that Venus or Lista lists:
+
+- **The next change, in plain units:** "Multiplier flips at T. Raw stays X. Share-eq becomes Y." Read from
+  `newUIMultiplier()` and `effectiveAt()`. Ondo publishes no schedule, so its rows say the sValue applies as written.
+- **The gap a share-priced oracle would leave** where the protocol counts raw tokens (the vToken, the Lista market),
+  in share-equivalents and dollars. Where Shaddai has measured the oracle's basis (Venus, against the DEX mark), it
+  says which one applies. Otherwise it shows both cases instead of guessing. A gap over 1% of the position is an
+  alert. Borrow rows are framed as debt; pool rows explain who absorbs a dividend flip (LPs, through arbitrage).
+- **Market hours** from the RWA Data API: if the cash market is shut, the row says the reference is stale and that the
+  preview is not a tradable premium.
+- **Binance DeFi API cross-check:** the same address's positions from the DeFi Data API, matched against the chain.
+  Each says whether Binance's amount equals the raw count or the share-equivalents, and lists tracked tokens in
+  protocols Shaddai does not scan.
+
+Market hours and the DeFi cross-check need the Binance Web3 API key; without it the preview still runs and says what
+it skipped. `sharetrue_collateral` returns the same preview to agents.
+
+## MCP tools
+
+The same reads are available to agents as MCP tools. An agent that calls `balanceOf()` reports raw tokens as shares;
+these tools return both units.
+
+| Tool                   | Title                  | Input                                               |
+| ---------------------- | ---------------------- | --------------------------------------------------- |
+| `sharetrue_portfolio`  | `sharetrue.portfolio`  | `address` (or `"demo"`)                             |
+| `sharetrue_ledger`     | `sharetrue.ledger`     | `address`, optional `ticker` or symbol              |
+| `sharetrue_collateral` | `sharetrue.collateral` | `address`                                           |
+| `sharetrue_explain`    | `sharetrue.explain`    | `ticker` (`NVDA`) or symbol (`NVDAon`)              |
+| `sharetrue_quoteBuy`   | `sharetrue.quoteBuy`   | `ticker`, `usd` (quote only; needs Buy switched on) |
+
+Tool names use underscores because some clients (the Claude API among them) reject dots in tool names; each tool's
+title is the dotted name. Every tool is read-only. Each returns a plain-text statement plus structured JSON; the ledger's JSON includes the CSV.
+
+- **Local (stdio):** `npm run mcp`. For Claude Desktop or Claude Code, add a server with command `npx` and args
+  `["tsx", "/path/to/shaddai/src/mcp/stdio.ts"]`, plus the same env vars as the web app (`BSC_RPC_URLS`, or
+  `SHADDAI_MODE=demo` for the fixture).
+- **Remote (HTTP):** point the client at `https://<your-app>.vercel.app/api/mcp`. From a terminal:
+
+  ```bash
+  curl -s https://<your-app>.vercel.app/api/mcp \
+    -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' \
+    -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"sharetrue_explain","arguments":{"ticker":"NVDA"}}}'
+  ```
 
 ## Project layout
 
@@ -234,6 +348,9 @@ the CSV label it as demo data.
 src/core/       chain reads, unit math, probing, ledger, collateral, CSV (no framework code)
 src/fixtures/   fixture chain + demo scenario
 src/server/     Hono app, config, local entrypoint, deploy-time index snapshot
+src/mcp/        MCP tools (server.ts) and the stdio entrypoint
+src/core/buy.ts, trade-api.ts   share-true Buy and the signed Binance Web3 API client
+src/core/preview.ts             pre-action collateral preview
 api/index.ts    Vercel function wrapping the same Hono app
 verify/evm/     the BEP-677 reference token on a local EVM (npm run verify:evm; own package.json, not deployed)
 web/            React statement UI (Vite)

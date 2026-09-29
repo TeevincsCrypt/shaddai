@@ -10,9 +10,11 @@ import {
   encodeAbiParameters,
   encodeFunctionResult,
   getAddress,
+  keccak256,
   numberToHex,
   pad,
   toFunctionSelector,
+  toHex,
   type Abi,
   type AbiFunction,
   type Address,
@@ -103,7 +105,12 @@ export interface FakeScenario {
   venus?: { comptroller: Address; oracle: Address; vTokens: FakeVToken[] };
   moolah?: { address: Address; markets: FakeMoolahMarket[] };
   pairs?: FakePair[];
-  ondoOracle?: { address: Address; values: Map<Address, { sValue: bigint; paused: boolean }> };
+  ondoOracle?: {
+    address: Address;
+    values: Map<Address, { sValue: bigint; paused: boolean }>;
+    /** sValue changes over time; each also emits an oracle log indexing the asset. */
+    history?: { block: bigint; asset: Address; sValue: bigint }[];
+  };
   /** Arbitrary extra logs (discovery tests: oracle updates, decoys). */
   extraLogs?: { address: Address; topics: Hex[]; data: Hex; block: bigint }[];
   /** Serve historical eth_call. False mimics a pruned node (128-block window). */
@@ -137,6 +144,8 @@ interface EmittedLog {
 }
 
 const word = (v: bigint) => encodeAbiParameters([{ type: 'uint256' }], [v]);
+/** Stand-in topic for the fixture oracle's update event; Shaddai never decodes it. */
+const SVALUE_UPDATED = keccak256(toHex('SValueUpdated(address,uint128)'));
 const addrTopic = (a: Address) => pad(a.toLowerCase() as Hex, { size: 32 });
 
 export class FakeChain implements RpcTransport {
@@ -280,6 +289,16 @@ export class FakeChain implements RpcTransport {
         });
       });
     }
+    (this.s.ondoOracle?.history ?? []).forEach((h, i) =>
+      logs.push({
+        address: getAddress(this.s.ondoOracle!.address),
+        topics: [SVALUE_UPDATED, addrTopic(h.asset)],
+        data: word(h.sValue),
+        blockNumber: h.block,
+        logIndex: 500 + i,
+        transactionHash: tx(),
+      }),
+    );
     (this.s.extraLogs ?? []).forEach((l, i) =>
       logs.push({
         address: getAddress(l.address),
@@ -353,6 +372,8 @@ export class FakeChain implements RpcTransport {
           return bal(args[0]);
         case 'totalSupply':
           return this.totalSupply(tok, block);
+        case 'allowance':
+          return 0n; // the fixture never approves anything
       }
       if (!tok.bep677) return undefined;
       const m = this.uiMultiplier(tok, block);
@@ -449,7 +470,13 @@ export class FakeChain implements RpcTransport {
     }
     const oracle = this.s.ondoOracle;
     if (oracle && target === oracle.address && fn === 'getSValue') {
-      const r = oracle.values.get(getAddress(args[0] as Address));
+      const asset = getAddress(args[0] as Address);
+      const r = oracle.values.get(asset);
+      const hist = (oracle.history ?? []).filter((h) => getAddress(h.asset) === asset);
+      if (hist.length) {
+        const past = hist.filter((h) => h.block <= block).sort((a, b) => (a.block < b.block ? -1 : 1));
+        return [past.length ? past[past.length - 1]!.sValue : ONE, r?.paused ?? false];
+      }
       return r ? [r.sValue, r.paused] : undefined;
     }
     return undefined;

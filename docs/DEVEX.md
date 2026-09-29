@@ -157,6 +157,57 @@ A multiplier change emits no `Transfer`. Any exporter built on transfer history 
 change. The ledger CSV (`date, block, issuer, symbol, contract, raw_at_event, old_mult, new_mult, delta_share_eq,
 est_usd, note`) is meant to sit next to a wallet export.
 
+## 16. Exposing the reads to agents (MCP)
+
+- Tool names: the brief used `sharetrue.portfolio`. Some clients (the Claude API among them) reject dots in tool names,
+  so the tools are `sharetrue_portfolio` etc., with the dotted name as the title.
+- `@modelcontextprotocol/sdk` 1.31.0, stateless Streamable HTTP with JSON replies: a POST whose `Accept` header is
+  missing or only `application/json` gets HTTP 406, "Client must accept both application/json and text/event-stream".
+  A plain `curl` needs `-H 'accept: application/json, text/event-stream'`. Checked in this repo's test harness.
+- Without a session, `tools/call` works with no `initialize` first, so each Vercel invocation can stand alone.
+
+## 17. Binance Web3 API, read from the official connector (not yet from live traffic)
+
+Source: `binance/binance-web3-connector-python` (commit `5f6256f`, 18 Sep 2026) and `@binance-web3/wallet` 12.3.1 on
+npm. The API docs host (`web3.binance.com`) was not reachable from the build sandbox, so everything here comes from the
+connectors' code and generated types. Nothing in this section has been checked against a live response yet.
+
+- Signing: `X-OC-SIGN = base64(HMAC-SHA256(secret, isoTimestamp + METHOD + path?query + body))`. The path includes
+  the `/build` base path. Headers: `X-OC-APIKEY`, `X-OC-TIMESTAMP`, `X-OC-SIGN`.
+- Equity tokens always quote as RFQ: "Equity / RWA tokens always return `RFQ`" (bStocks and Ondo are named). The
+  buyer signs `rfq.typedDataToSign` (EIP-712), submits it to `POST /order/submit`, and polls `GET /order/{orderId}`.
+  `/quote` wants `userWalletAddress` for RFQ routes, so an anonymous comparison needs some address.
+- The USDT approval for an RFQ buy goes to a vendor-specific spender (1inch router, Permit2 for PancakeSwap X, or
+  CowSwap's VaultRelayer). `/approve-transaction` resolves it from `vendor`.
+- `data()` in the npm connector returns only the envelope's `data` field. A business error arrives as HTTP 200 with a
+  non-zero `code` (for example 40401 `QUOTE_EXPIRED`), and the connector turns it into `null` with the message lost.
+  Checked in this repo's tests. Shaddai signs its own requests to keep `code` and `msg`, and a parity test checks it
+  sends the same method, path, query and body as the connector.
+- The npm connector's `simulateTransactions` throws "Required parameter solTx was null" for an EVM-only request. Its
+  own docs say to send exactly one of `evmTx`, `solTx` or `tronTx`.
+- The npm connector's `getRfqOrderStatus` sends a GET with a JSON body.
+- Docs inconsistency: `POST /order/submit` describes `quoteId` as "`rfq.orderId` from the `/swap` response", but the
+  `/swap` RFQ schema has no `orderId`. Shaddai sends `rfq.orderId` if it is present, otherwise the `/quote` quoteId.
+- `typedDataToSign` is described as "serialized as a hex string (or JSON-encoded string)". Shaddai accepts either.
+- The RWA token list has `tokenToShareRatio` ("1 token ≈ 1.003701 underlying shares") and a status with market hours
+  and halt reasons (`ASSET_PAUSED` with `stock_split`, `cash_dividend`, …). Shaddai shows the ratio next to the on-chain
+  factor and uses the chain.
+- DeFi Data `POST /api/v1/defi/data/position/list` takes up to 3 addresses and, "this release", BSC only. It nests
+  address → protocol → pool → position collection → position → supply/borrow tokens, with a lending health factor
+  on the collection. `tokenAmount` is documented only as "human-readable (NOT the smallest unit)". Whether a bStock
+  amount is raw or share-equivalent is not stated, so Shaddai compares it with both figures read on chain.
+- USD1's BSC address does not appear in either connector, so Shaddai does not hard-code it. It resolves USD1 through
+  token search and checks `symbol()` on chain.
+
+## 18. First live Binance Web3 API call
+
+- The first live `/quote` (USDT → bStock wrapper, from the Vercel deploy with its default region) came back as a JSON
+  envelope with code 40304, "Service not available due to compliance restriction". It was a business error in the
+  body, not an HTTP error, so the official npm connector would have handed back `null` and no message.
+- Not yet known: whether the refusal is tied to the server's location, the API key's account, or equity tokens only.
+  `/api/buy/diagnose` runs four calls (RWA list, token search, a USDT → USDC quote, a USDT → NVDAB quote) to separate
+  those cases.
+
 ## Measured on mainnet
 
 First live run of the deployed app: Vercel, one NodeReal BSC endpoint, index built during the Vercel build from
@@ -235,3 +286,8 @@ dividend using NVDAB's real multiplier and notice period, a schedule that is ove
 - Whether public (non-archive) endpoints push the ledger into Transfer replay, and how far replay gets on busy
   contracts before the `SHADDAI_MAX_REPLAY_LOGS` cap. NodeReal served the archive read. Each ledger row says which
   path it used.
+- Pre-action preview, once a key is set: whether the DeFi API reports bStock amounts in raw or share units for Venus
+  and Lista, and whether its health factor accounts for the multiplier.
+- Buy, once a key is set: the first live `/quote` for an RFQ route (does it need the wallet, what is the minimum
+  size), whether `priceImpactPercent` comes back for RFQ vendors, the real `typedDataToSign` shape per vendor, the
+  `/order/submit` id question above, a Transaction API dry run of the approve, and then a small live buy end to end.

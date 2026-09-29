@@ -200,3 +200,33 @@ describe('raw balance at a past block', () => {
     expect(r.get(targets[1]!)).toMatchObject({ raw: u('12'), source: 'assumed-current' });
   });
 });
+
+describe('share factor not read', () => {
+  it('never fakes 1:1 for Ondo without an oracle answer or for xStocks without a factor', async () => {
+    const plain = (address: `0x${string}`, symbol: string) => ({
+      address,
+      symbol,
+      decimals: 18,
+      bep677: false,
+      deployBlock: blockOf(day(0)),
+      schedules: [],
+      transfers: [{ block: blockOf(day(1)), from: OTHER, to: HOLDER, value: u('5') }],
+    });
+    const ONDO_T = getAddress('0x0000000000000000000000000000000000007002');
+    const XS_T = getAddress('0x0000000000000000000000000000000000007003');
+    const s = scenario();
+    s.tokens.push(plain(ONDO_T, 'TESTon'), plain(XS_T, 'TESTx'));
+    const { chain } = chainFor(s);
+    const infos: TokenInfo[] = [
+      { ...info, address: ONDO_T, symbol: 'TESTon', issuer: 'Ondo', model: 'ondo' },
+      { ...info, address: XS_T, symbol: 'TESTx', issuer: 'xStocks', model: 'xstocks' },
+    ];
+    const probes = await probeTokens(chain, infos, HOLDER, blockOf(day(60)), day(60), { ondoOracle: null });
+    const o = probes.get(ONDO_T)!;
+    const x = probes.get(XS_T)!;
+    expect(o).toMatchObject({ raw: u('5'), shareEq: null, shareEqSource: 'unread' });
+    expect(o.unit.unreadReason).toMatch(/Ondo total-return factor not read .*Do not treat 1 token as 1 share/);
+    expect(x).toMatchObject({ shareEq: null, shareEqSource: 'unread' });
+    expect(x.unit.unreadReason).toBe('Display factor not on this token. Shaddai does not invent one.');
+  });
+});

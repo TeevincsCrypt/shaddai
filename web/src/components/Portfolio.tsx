@@ -20,7 +20,17 @@ function unitStatus(row: PortfolioRow, unit: UnitModel | undefined, severity?: s
     );
   }
   if (unit.ondo?.paused) return <span className="chip watch">Ondo oracle paused</span>;
-  if (unit.kind === 'none') return <span className="chip quiet">No multiplier found</span>;
+  if (unit.kind === 'none') {
+    return (
+      <span className="chip watch" title={unit.unreadReason ?? undefined}>
+        {row.token.issuer === 'Ondo'
+          ? 'Total-return factor not read'
+          : row.token.issuer === 'xStocks'
+            ? 'Display factor not on this token'
+            : 'Multiplier not read'}
+      </span>
+    );
+  }
   if (row.oneToOneNow) return <span className="chip quiet">1 token ≈ 1 share right now</span>;
   return null;
 }
@@ -29,7 +39,7 @@ const SOURCE_LABEL: Record<PortfolioRow['shareEqSource'], string> = {
   balanceOfUI: 'balanceOfUI()',
   computed: 'raw × uiMultiplier',
   sValue: 'raw × Ondo sValue',
-  raw: '1:1, unverified',
+  unread: 'factor not read',
 };
 
 export function Portfolio({ result }: { result: ScanResult }) {
@@ -158,7 +168,11 @@ export function Portfolio({ result }: { result: ScanResult }) {
                       {mult(r.multiplier)}
                     </td>
                     <td className="num" data-label="Share-equivalents">
-                      <span className="share-v">{amount(r.shareEq)}</span>
+                      {r.shareEq === null ? (
+                        <span className="muted">not read</span>
+                      ) : (
+                        <span className="share-v">{amount(r.shareEq)}</span>
+                      )}
                       {drift !== 0 ? <span className="drift">+{amount(r.drift)}</span> : null}
                       <span className="drift" style={{ color: 'var(--faint)' }}>
                         {SOURCE_LABEL[r.shareEqSource]}

@@ -28,8 +28,8 @@ export function Explainer() {
         <div>
           <p className="big">Your wallet counts tokens. Shaddai counts shares.</p>
           <p>
-            After a dividend, the token contract keeps the same raw number and raises a multiplier. That extra 0.017 is
-            the reinvested dividend, after withholding. It is not a glitch and it is not cash you can spend.
+            After a dividend the contract keeps the same raw number and raises a multiplier. The extra amount is the
+            reinvested dividend after withholding. It is not a glitch and it is not cash you can spend.
           </p>
         </div>
         <button type="button" className="btn" onClick={close}>

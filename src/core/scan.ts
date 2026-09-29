@@ -1,5 +1,6 @@
 import { getAddress, type Address, type Hex } from 'viem';
 import type { RawAtOptions } from './balances.js';
+import type { BuyConfig } from './buy.js';
 import { TtlCache } from './cache.js';
 import type { Chain } from './chain.js';
 import { scanCollateral } from './collateral.js';
@@ -32,6 +33,8 @@ export interface ShaddaiContext {
   background?: (work: Promise<unknown>) => void;
   /** Deployment facts for /api/status. Never holds URLs or keys. */
   diagnostics?: Record<string, string | boolean | null>;
+  /** Share-true Buy; absent when no trade API is configured. */
+  buy?: BuyConfig;
 }
 
 const ledgerJobs = new WeakMap<ShaddaiContext, TtlCache<LedgerSection>>();
@@ -112,7 +115,7 @@ export async function scanAddress(
             : 'unavailable',
       detail: ctx.ondoOracle
         ? `SyntheticSharesOracle ${ctx.ondoOracle}: ${st.filter((s) => s === 'ok').length}/${ondoTokens.length} assets answered getSValue().`
-        : 'ONDO_SSO_ADDRESS not configured; Ondo rows use the wallet multiplier if one exists, else 1:1.',
+        : 'No Ondo oracle configured; Ondo share-equivalents are shown as not read.',
     });
   }
 
@@ -158,9 +161,16 @@ export async function scanAddress(
       protocolExposure: exposure,
       rawAt: ctx.rawAt,
     });
+    const notices: string[] = [];
+    if (ctx.feed.ondoUnresolved) {
+      notices.push(
+        `${ctx.feed.ondoUnresolved} Ondo sValue update(s) could not be read: old and new values need historical (archive) state from the RPC endpoint.`,
+      );
+    }
     return {
       status: 'ready',
       rows,
+      notices,
       error: stale,
       scannedFrom: snap.scannedFrom?.toString(),
       scannedTo: snap.scannedTo?.toString(),

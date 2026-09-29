@@ -4,12 +4,13 @@ import type { KV } from './cache.js';
 import type { Chain, RawLog } from './chain.js';
 import type { TokenInfo } from './registry.js';
 import type { MultiplierEvent, TokenRef } from './types.js';
+import { fetchOndoSValueEvents } from './ondo-events.js';
 import { classifyChange, multiplierString } from './units.js';
 
 export interface DecodedMultiplierLog {
   token: Address;
   type: 'updated' | 'overwritten' | 'cancelled';
-  layout: 'bep677-3' | 'variant-4';
+  layout: 'bep677-3' | 'variant-4' | 'ondo-svalue';
   oldMultiplier: bigint;
   newMultiplier: bigint;
   effectiveAt: bigint;
@@ -185,7 +186,7 @@ interface FeedCacheShape {
   effectiveBlocks: Record<string, string>;
 }
 
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;
 
 export interface FeedSnapshot {
   status: 'ready' | 'indexing' | 'unavailable';
@@ -219,12 +220,17 @@ export class FeedIndexer {
     private readonly kv: KV,
     private readonly startBlock: () => Promise<bigint>,
     private readonly cacheKey = 'feed',
+    /** Ondo's SyntheticSharesOracle; its sValue changes are indexed alongside BEP-677 events. */
+    private readonly ondoOracle: Address | null = null,
   ) {
-    this.tokensKey = tokens
-      .map((t) => t.address.toLowerCase())
-      .sort()
-      .join(',');
+    this.tokensKey = [
+      ...tokens.map((t) => t.address.toLowerCase()).sort(),
+      `ondo:${ondoOracle?.toLowerCase() ?? '-'}`,
+    ].join(',');
   }
+
+  /** sValue logs the oracle emitted that could not be turned into old/new values (no archive state). */
+  ondoUnresolved = 0;
 
   snapshot(): FeedSnapshot {
     return {
@@ -330,6 +336,14 @@ export class FeedIndexer {
           const d = decodeMultiplierLog(log);
           if (!d) continue;
           batch.push({ ...d, scheduledAt: await this.chain.timestampOf(log) });
+        }
+        const ondoTokens = this.tokens.filter((t) => t.model === 'ondo');
+        if (this.ondoOracle && ondoTokens.length) {
+          const o = await fetchOndoSValueEvents(this.chain, this.ondoOracle, ondoTokens, from, head.number);
+          batch.push(...o.events);
+          this.ondoUnresolved += o.unresolved;
+          // sValue applies in the block it is written: pin activation to that block.
+          for (const e of o.events) this.effectiveBlocks.set(`${e.txHash}:${e.logIndex}`, e.blockNumber);
         }
         this.decoded.push(...batch);
         this.scannedTo = head.number;

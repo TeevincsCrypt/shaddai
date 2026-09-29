@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { FileKV } from '../core/cache.js';
+import type { Address } from 'viem';
+import { FileKV, MemoryKV } from '../core/cache.js';
 import { ONDO_SSO_KNOWN } from '../core/registry.js';
 import { discoverOndoOracle, ONDO_ORACLE_SEARCH_HINTS } from '../core/ondo-discovery.js';
 import type { ShaddaiContext } from '../core/scan.js';
@@ -34,9 +35,47 @@ export async function buildSnapshot(cfg: AppConfig, opts: SnapshotOptions = {}) 
     join(cfg.seedDir, 'README.txt'),
     'Deploy-time multiplier-event index. Written by npm run index:snapshot.\n',
   );
-  const ctx = createLiveContext(cfg, new FileKV(cfg.seedDir));
+
+  // 1. Settle the Ondo oracle first: the index includes its sValue events, and the
+  //    runtime must use the same oracle or the shipped index will not match.
+  const probeCtx = createLiveContext(cfg, new MemoryKV());
+  opts.tweak?.(probeCtx);
+  const head = await probeCtx.chain.blockNumber();
+  let ondoOracle: Address | null = cfg.ondoOracle;
+  let ondoSource = cfg.ondoOracleSource;
+  const ondoTokens = probeCtx.tokens.filter((t) => t.model === 'ondo');
+  const discoveryMs = opts.ondoDiscoveryMs ?? 90_000;
+  // Runs unless the address was set by hand; the pinned address is checked first, so this is
+  // one multicall while it keeps answering.
+  if (cfg.ondoOracleSource !== 'env' && ondoTokens.length && discoveryMs > 0) {
+    try {
+      const d = await discoverOndoOracle(probeCtx.chain, ondoTokens, head, {
+        budgetMs: discoveryMs,
+        lookbackBlocks: opts.ondoLookbackBlocks,
+        hints: [ONDO_SSO_KNOWN, ...ONDO_ORACLE_SEARCH_HINTS],
+        log,
+      });
+      writeFileSync(join(cfg.seedDir, ONDO_DISCOVERY_FILE), JSON.stringify(d, null, 2));
+      ondoOracle = d.found;
+      ondoSource = d.found ? 'discovered' : null;
+      log(
+        d.found
+          ? `ondo discovery: SyntheticSharesOracle ${d.found} answered getSValue() for ${d.answered}/${d.total} Ondo tokens; using it.`
+          : `ondo discovery: not found (${d.notes.join(' ')})`,
+      );
+      for (const c of d.candidates.slice(0, 5)) {
+        log(
+          `ondo discovery: candidate ${c.address} (${c.source}) tokens seen ${c.tokensSeen}, getSValue answered ${c.answered}/${d.total}, topics ${c.eventTopics.join(',') || '-'}`,
+        );
+      }
+    } catch (e) {
+      log(`ondo discovery skipped: ${(e as Error).message}`);
+    }
+  }
+
+  // 2. Index multiplier and sValue events up to head, in steps.
+  const ctx = createLiveContext({ ...cfg, ondoOracle, ondoOracleSource: ondoSource }, new FileKV(cfg.seedDir));
   opts.tweak?.(ctx);
-  const head = await ctx.chain.blockNumber();
   log(`index snapshot: head ${head}, writing to ${cfg.seedDir}`);
   let complete = false;
   for (;;) {
@@ -61,36 +100,8 @@ export async function buildSnapshot(cfg: AppConfig, opts: SnapshotOptions = {}) 
     }
   }
   const s = ctx.feed.snapshot();
-
-  // Ondo's oracle address is not published; look for it on-chain once per deploy.
-  let ondoOracle: string | null = cfg.ondoOracle;
-  const ondoTokens = ctx.tokens.filter((t) => t.model === 'ondo');
-  const discoveryMs = opts.ondoDiscoveryMs ?? 90_000;
-  // Runs unless the address was set by hand; the pinned address is checked first, so this is
-  // one multicall while it keeps answering.
-  if (cfg.ondoOracleSource !== 'env' && ondoTokens.length && discoveryMs > 0) {
-    try {
-      const d = await discoverOndoOracle(ctx.chain, ondoTokens, head, {
-        budgetMs: discoveryMs,
-        lookbackBlocks: opts.ondoLookbackBlocks,
-        hints: [ONDO_SSO_KNOWN, ...ONDO_ORACLE_SEARCH_HINTS],
-        log,
-      });
-      writeFileSync(join(cfg.seedDir, ONDO_DISCOVERY_FILE), JSON.stringify(d, null, 2));
-      ondoOracle = d.found;
-      log(
-        d.found
-          ? `ondo discovery: SyntheticSharesOracle ${d.found} answered getSValue() for ${d.answered}/${d.total} Ondo tokens; using it.`
-          : `ondo discovery: not found (${d.notes.join(' ')})`,
-      );
-      for (const c of d.candidates.slice(0, 5)) {
-        log(
-          `ondo discovery: candidate ${c.address} (${c.source}) tokens seen ${c.tokensSeen}, getSValue answered ${c.answered}/${d.total}, topics ${c.eventTopics.join(',') || '-'}`,
-        );
-      }
-    } catch (e) {
-      log(`ondo discovery skipped: ${(e as Error).message}`);
-    }
+  if (ctx.feed.ondoUnresolved) {
+    log(`index snapshot: ${ctx.feed.ondoUnresolved} Ondo oracle update(s) could not be read (needs archive state).`);
   }
   return { complete, scannedTo: s.scannedTo, events: s.decoded.length, ondoOracle };
 }

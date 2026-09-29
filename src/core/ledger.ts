@@ -105,6 +105,9 @@ export async function buildLedger(input: LedgerInput): Promise<LedgerRow[]> {
           }
         }
 
+        if (e.eventLayout === 'ondo-svalue') {
+          notes.push('Ondo sValue change on the oracle, read before and after; the token contract emitted nothing.');
+        }
         if (e.kind === 'dividend-reinvest') notes.push(WITHHOLDING_NOTE);
         else if (estUsd !== null) notes.push('Estimate. Not tax advice.');
         if (e.status !== 'overwritten') notes.push(NO_TRANSFER_NOTE);
