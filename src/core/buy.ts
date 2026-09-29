@@ -19,12 +19,26 @@ import { tokenRef } from './events.js';
 import { probeTokens, type TokenProbe } from './probe.js';
 import type { TokenInfo } from './registry.js';
 import type { ShaddaiContext } from './scan.js';
-import type { EvmTx, Route, RwaStatus, RwaToken, Simulation, TradeApi } from './trade-api.js';
+import {
+  TradeApiError,
+  type EvmTx,
+  type Route,
+  type RwaStatus,
+  type RwaToken,
+  type Simulation,
+  type TradeApi,
+} from './trade-api.js';
 import type { TokenRef } from './types.js';
 import { decimalString, fixedToNumber, multiplierString, ONE, toUI } from './units.js';
 
 /** BSC USDT, the chain-56 pay-in token in Binance's own Web3 API example. */
 export const USDT_BSC: Address = getAddress('0x55d398326f99059fF775485246999027B3197955');
+/** BSC USDC, the chain-56 buy token in the same examples; used only for the diagnostic non-equity quote. */
+export const USDC_BSC: Address = getAddress('0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d');
+
+/** Binance Web3 API business code for a compliance refusal. */
+export const COMPLIANCE_CODE = 40304;
+export const isCompliance = (e: unknown) => e instanceof TradeApiError && Number(e.code) === COMPLIANCE_CODE;
 
 export type PayInSymbol = 'USDT' | 'USD1';
 export const PAY_IN_SYMBOLS: PayInSymbol[] = ['USDT', 'USD1'];
@@ -57,6 +71,8 @@ export const BUY_COPY = {
   xstocksUnread: 'Display factor not on this token — do not invent it.',
   bstockUnread: 'uiMultiplier() did not answer — share-equivalents unknown, so this wrapper is not quoted.',
   noRoute: 'No route returned for this pair.',
+  compliance:
+    'Binance declined to quote for compliance reasons (code 40304). It limits tokenized-stock services by jurisdiction, and the location of the server calling it counts.',
   depthUnknown:
     'Depth not measured: the quote gave no price impact and the smaller probe quote failed. Refused rather than assumed deep.',
   rfqNote:
@@ -246,6 +262,7 @@ export async function quoteShareTrueBuy(ctx: ShaddaiContext, input: QuoteInput):
     notes.push('Quoted with the server quote wallet; connect your wallet before buying.');
   }
 
+  let complianceHits = 0;
   const evaluate = async (w: TokenInfo): Promise<WrapperQuote> => {
     const p = probes.get(w.address) as TokenProbe;
     const r: RwaToken | null = rwa.ok ? (rwa.list.find((x) => x.address === w.address) ?? null) : null;
@@ -367,7 +384,10 @@ export async function quoteShareTrueBuy(ctx: ShaddaiContext, input: QuoteInput):
         : Promise.resolve(null),
     ]);
     if (full instanceof Error) {
-      refuse(`Quote failed: ${full.message}`);
+      if (isCompliance(full)) {
+        complianceHits++;
+        refuse(BUY_COPY.compliance);
+      } else refuse(full.message);
       return q;
     }
     const route = bestRoute(full);
@@ -421,7 +441,11 @@ export async function quoteShareTrueBuy(ctx: ShaddaiContext, input: QuoteInput):
       `Counting tokens would pick ${sym(rawCountPick)}; counting shares picks ${sym(best)}. The wrappers carry different share factors.`,
     );
   }
-  if (!ok.length) notes.push('Nothing to buy: every wrapper was refused. Reasons are listed per wrapper.');
+  if (complianceHits) {
+    notes.push(
+      'Binance refused this request for compliance reasons. Check /api/buy/diagnose: it shows the server region and which Binance calls are refused.',
+    );
+  } else if (!ok.length) notes.push('Nothing to buy: every wrapper was refused. Reasons are listed per wrapper.');
 
   return {
     mode: ctx.mode,
@@ -735,4 +759,50 @@ export function quoteText(q: BuyQuote): string {
     'Tokens are not the listed share and carry no voting rights. Not investment advice.',
   );
   return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Diagnose: which Binance Web3 API calls this server may make, and from where.
+
+export interface DiagnoseStep {
+  name: string;
+  ok: boolean;
+  code: number | string | null;
+  detail: string;
+}
+
+export async function diagnoseBuy(ctx: ShaddaiContext, region: string | null) {
+  const cfg = requireBuy(ctx);
+  const step = async (name: string, f: () => Promise<string>): Promise<DiagnoseStep> => {
+    try {
+      return { name, ok: true, code: 0, detail: await f() };
+    } catch (e) {
+      const err = e as TradeApiError;
+      return { name, ok: false, code: err.code ?? null, detail: err.message };
+    }
+  };
+  const nvdab = ctx.tokens.find((t) => t.symbol === 'NVDAB')!.address;
+  const wallet = cfg.quoteWallet ?? undefined;
+  const steps = [
+    await step('RWA Data: token list', async () => `${(await cfg.api.rwaTokens()).length} tokens`),
+    await step('Market: token search (USDT)', async () => `${(await cfg.api.searchToken('USDT')).length} hits`),
+    await step('Trading: quote 1 USDT → USDC (not an equity token)', async () => {
+      const r = await cfg.api.quote({ from: USDT_BSC, to: USDC_BSC, amount: 10n ** 18n });
+      return r.length ? `${r.length} route(s), best ${bestRoute(r)!.vendorName}` : 'no route';
+    }),
+    await step(`Trading: quote 5 USDT → NVDAB${wallet ? ' (quote wallet)' : ' (no wallet)'}`, async () => {
+      const r = await cfg.api.quote({ from: USDT_BSC, to: nvdab, amount: 5n * 10n ** 18n, wallet });
+      return r.length ? `${r.length} route(s), ${bestRoute(r)!.executionMode}` : 'no route';
+    }),
+  ];
+  const refused = steps.filter((s) => !s.ok && Number(s.code) === COMPLIANCE_CODE).map((s) => s.name);
+  const reading =
+    refused.length === 0
+      ? 'No compliance refusals.'
+      : refused.length === steps.length
+        ? 'Every call is refused, including market data: the refusal is about where the server runs or the API key account, not the token.'
+        : refused.every((n) => n.includes('NVDAB'))
+          ? 'Only the equity-token quote is refused: tokenized stocks are restricted for this server location or account; other services work.'
+          : 'Some calls are refused; see each step.';
+  return { region, api: cfg.api.label, quoteWallet: Boolean(cfg.quoteWallet), steps, reading };
 }

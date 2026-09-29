@@ -4,6 +4,7 @@ import { getAddress, isAddress } from 'viem';
 import {
   BuyError,
   buyOrderStatus,
+  diagnoseBuy,
   PAY_IN_SYMBOLS,
   prepareBuy,
   quoteShareTrueBuy,
@@ -186,6 +187,15 @@ export function createApp(deps: AppDeps) {
       payIn: PAY_IN_SYMBOLS,
       tickers: [...tickers.values()].sort((a, b) => a.ticker.localeCompare(b.ticker)),
     });
+  });
+
+  app.get('/api/buy/diagnose', async (c) => {
+    try {
+      return c.json(await diagnoseBuy(buyCtx(c.req.query('demo')), process.env.VERCEL_REGION ?? null));
+    } catch (e) {
+      const f = buyFail(e);
+      return c.json({ error: f.error }, f.status);
+    }
   });
 
   app.get('/api/buy/quote', async (c) => {

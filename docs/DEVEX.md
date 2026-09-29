@@ -199,6 +199,15 @@ connectors' code and generated types. Nothing in this section has been checked a
 - USD1's BSC address does not appear in either connector, so Shaddai does not hard-code it. It resolves USD1 through
   token search and checks `symbol()` on chain.
 
+## 18. First live Binance Web3 API call
+
+- The first live `/quote` (USDT → bStock wrapper, from the Vercel deploy with its default region) came back as a JSON
+  envelope with code 40304, "Service not available due to compliance restriction". It was a business error in the
+  body, not an HTTP error, so the official npm connector would have handed back `null` and no message.
+- Not yet known: whether the refusal is tied to the server's location, the API key's account, or equity tokens only.
+  `/api/buy/diagnose` runs four calls (RWA list, token search, a USDT → USDC quote, a USDT → NVDAB quote) to separate
+  those cases.
+
 ## Measured on mainnet
 
 First live run of the deployed app: Vercel, one NodeReal BSC endpoint, index built during the Vercel build from

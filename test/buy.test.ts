@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { Web3Wallet } from '@binance-web3/wallet';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getAddress, type Address } from 'viem';
-import { BUY_COPY, BuyError, prepareBuy, quoteShareTrueBuy, submitBuy, USDT_BSC } from '../src/core/buy.js';
+import { BUY_COPY, BuyError, prepareBuy, quoteShareTrueBuy, submitBuy, USDC_BSC, USDT_BSC } from '../src/core/buy.js';
 import { BinanceWeb3Api, TradeApiError, type BuiltSwap } from '../src/core/trade-api.js';
 import { DEMO_ADDRESS, DEMO_RFQ_SPENDER, DEMO_USDT, demoMarks, demoRwa } from '../src/fixtures/demo.js';
 import { FakeTradeApi } from '../src/fixtures/fake-trade-api.js';
@@ -431,5 +431,51 @@ describe('/api/buy routes', () => {
     const r = await live.request('/api/buy/quote?ticker=NVDA&usd=5');
     expect(r.status).toBe(503);
     expect(((await r.json()) as { error: string }).error).toContain('BINANCE_WEB3_API_KEY');
+  });
+});
+
+describe('compliance refusals (code 40304)', () => {
+  const compliance = () =>
+    new TradeApiError('Quote: Service not available due to compliance restriction (code 40304)', 40304);
+
+  it('refuses each wrapper once, with one clear note', async () => {
+    const ctx = demoContext(NOW);
+    (ctx.buy!.api as FakeTradeApi).quote = async () => {
+      throw compliance();
+    };
+    const q = await quoteShareTrueBuy(ctx, { ticker: 'NVDA', usd: 5 });
+    expect(q.wrappers.map((w) => w.reasons)).toEqual([[BUY_COPY.compliance], [BUY_COPY.compliance]]);
+    expect(q.notes.join(' ')).toContain('/api/buy/diagnose');
+    expect(q.notes.join(' ')).not.toContain('Nothing to buy');
+  });
+
+  it('diagnose tells a location or account block from an equity-only block', async () => {
+    const ctx = demoContext(NOW);
+    const api = ctx.buy!.api as FakeTradeApi;
+    const orig = api.quote.bind(api);
+    api.quote = async (p) => {
+      if (p.to !== USDC_BSC) throw compliance();
+      return orig(p);
+    };
+    const app = createApp({ mode: 'demo', live: () => ctx, demo: () => ctx });
+    const d = (await (await app.request('/api/buy/diagnose')).json()) as {
+      steps: { name: string; ok: boolean; code: number }[];
+      reading: string;
+    };
+    expect(d.steps.map((s) => s.ok)).toEqual([true, true, true, false]);
+    expect(d.steps[3]!.code).toBe(40304);
+    expect(d.reading).toMatch(/^Only the equity-token quote is refused/);
+
+    const all = demoContext(NOW);
+    all.buy!.api = new FakeTradeApi({
+      marks: demoMarks().marks,
+      rwa: demoRwa(),
+      spender: DEMO_RFQ_SPENDER,
+      stable: [DEMO_USDT],
+      fail: { rwaTokens: compliance(), searchToken: compliance(), quote: compliance() },
+    });
+    const app2 = createApp({ mode: 'demo', live: () => all, demo: () => all });
+    const d2 = (await (await app2.request('/api/buy/diagnose')).json()) as { reading: string };
+    expect(d2.reading).toMatch(/^Every call is refused/);
   });
 });

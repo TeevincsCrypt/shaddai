@@ -251,6 +251,7 @@ the CSV label it as demo data.
 | `POST /api/mcp`                | MCP over Streamable HTTP (stateless, JSON replies). See [MCP tools](#mcp-tools).                                                          |
 | `GET /api/preview?address=`    | Pre-action collateral preview: flips, oracle gaps, market hours, Binance DeFi cross-check. See [Pre-action preview](#pre-action-preview). |
 | `GET /api/buy/config`          | Whether Buy is on, limits, tickers and their wrappers.                                                                                    |
+| `GET /api/buy/diagnose`        | Server region and which Binance Web3 API calls succeed or are refused (for code 40304).                                                   |
 | `GET /api/buy/quote`           | `ticker`, `usd`, `payIn` (`USDT`/`USD1`), optional `wallet`. Share-true comparison; never trades.                                         |
 | `POST /api/buy/prepare`        | `{token, usd, payIn, wallet}` → the next step: checked approve plus dry run, or the EIP-712 order with its checks.                        |
 | `POST /api/buy/submit`         | `{requestId, signature, vendor, quoteId, signingScheme}` → forwards the signed order.                                                     |
@@ -281,6 +282,13 @@ the tab polls the order until it is filled. There is no swap transaction to simu
 
 Pay-in is USDT (`0x55d3…7955`, the chain-56 token in Binance's own API example) or USD1, which is looked up through the
 Market API's token search and used only if its contract answers `symbol() = "USD1"`.
+
+**If Buy says "compliance restriction (code 40304)".** Binance declined the request. It limits tokenized-stock services
+by jurisdiction, and the location of the server calling the API is one of the inputs. On Vercel, functions run in
+Washington, D.C. (`iad1`) unless the project picks another region. Open `/api/buy/diagnose`: it shows the region and
+which calls Binance refuses (all of them, or only the equity-token quote). If the team operates from a place where
+these products are offered, set the function region there (Vercel → Settings → Functions → Function Region, or
+`"regions"` in `vercel.json`) and redeploy. A region is not a way around a restriction that applies to you or your users.
 
 Spot only, BSC only. Live buys use small amounts from a wallet the team funds; the server caps each ticket
 (`SHADDAI_BUY_MAX_USD`). The demo runs the whole flow on a fixture API with signing disabled.

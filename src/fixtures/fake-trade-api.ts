@@ -37,14 +37,14 @@ export class FakeTradeApi implements TradeApi {
       search?: { address: Address; symbol: string; decimals: number | null }[];
       defi?: DefiPosition[];
       /** Force a failure for one method (tests). */
-      fail?: Partial<Record<keyof TradeApi, string>>;
+      fail?: Partial<Record<keyof TradeApi, string | Error>>;
     },
   ) {}
 
   private hit(m: keyof TradeApi) {
     this.calls[m] = (this.calls[m] ?? 0) + 1;
     const f = this.opts.fail?.[m];
-    if (f) throw new Error(f);
+    if (f) throw typeof f === 'string' ? new Error(f) : f;
   }
 
   async rwaTokens(): Promise<RwaToken[]> {
