@@ -227,6 +227,34 @@ the CSV label it as demo data.
 | `GET /api/feed`                | Global multiplier-event feed for the registry (`?demo=1` for the fixture).                                               |
 | `GET /api/status`              | Config facts (custom RPC set, snapshot shipped; never URLs or keys), index state, RPC endpoint health, request counters. |
 | `GET /api/config`              | Mode, demo address, live example addresses.                                                                              |
+| `POST /api/mcp`                | MCP over Streamable HTTP (stateless, JSON replies). See [MCP tools](#mcp-tools).                                         |
+
+## MCP tools
+
+The same reads are available to agents as MCP tools. An agent that calls `balanceOf()` reports raw tokens as shares;
+these tools return both units.
+
+| Tool                   | Title                  | Input                                          |
+| ---------------------- | ---------------------- | ---------------------------------------------- |
+| `sharetrue_portfolio`  | `sharetrue.portfolio`  | `address` (or `"demo"`)                        |
+| `sharetrue_ledger`     | `sharetrue.ledger`     | `address`, optional `ticker` or symbol         |
+| `sharetrue_collateral` | `sharetrue.collateral` | `address`                                      |
+| `sharetrue_explain`    | `sharetrue.explain`    | `ticker` (`NVDA`) or symbol (`NVDAon`)         |
+| `sharetrue_quoteBuy`   | `sharetrue.quoteBuy`   | `ticker`, `usd` (when a quote provider is set) |
+
+Tool names use underscores because some clients (the Claude API among them) reject dots in tool names; each tool's
+title is the dotted name. Every tool is read-only. Each returns a plain-text statement plus structured JSON; the ledger's JSON includes the CSV.
+
+- **Local (stdio):** `npm run mcp`. For Claude Desktop or Claude Code, add a server with command `npx` and args
+  `["tsx", "/path/to/shaddai/src/mcp/stdio.ts"]`, plus the same env vars as the web app (`BSC_RPC_URLS`, or
+  `SHADDAI_MODE=demo` for the fixture).
+- **Remote (HTTP):** point the client at `https://<your-app>.vercel.app/api/mcp`. From a terminal:
+
+  ```bash
+  curl -s https://<your-app>.vercel.app/api/mcp \
+    -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' \
+    -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"sharetrue_explain","arguments":{"ticker":"NVDA"}}}'
+  ```
 
 ## Project layout
 
@@ -234,6 +262,7 @@ the CSV label it as demo data.
 src/core/       chain reads, unit math, probing, ledger, collateral, CSV (no framework code)
 src/fixtures/   fixture chain + demo scenario
 src/server/     Hono app, config, local entrypoint, deploy-time index snapshot
+src/mcp/        MCP tools (server.ts) and the stdio entrypoint
 api/index.ts    Vercel function wrapping the same Hono app
 verify/evm/     the BEP-677 reference token on a local EVM (npm run verify:evm; own package.json, not deployed)
 web/            React statement UI (Vite)

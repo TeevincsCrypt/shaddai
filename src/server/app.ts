@@ -1,3 +1,4 @@
+import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { Hono } from 'hono';
 import { getAddress, isAddress } from 'viem';
 import { TtlCache } from '../core/cache.js';
@@ -7,11 +8,13 @@ import { FallbackTransport } from '../core/rpc.js';
 import { getFeed, scanAddress, type ShaddaiContext } from '../core/scan.js';
 import type { ScanResult } from '../core/types.js';
 import { DEMO_ADDRESS } from '../fixtures/demo.js';
+import { createMcpServer, type McpDeps } from '../mcp/server.js';
 
 export interface AppDeps {
   mode: 'live' | 'demo';
   live: () => ShaddaiContext;
   demo: () => ShaddaiContext;
+  quoteBuy?: McpDeps['quoteBuy'];
 }
 
 const LIVE_EXAMPLES = [
@@ -127,6 +130,27 @@ export function createApp(deps: AppDeps) {
       stats: ctx.chain.stats,
     });
   });
+
+  // MCP over Streamable HTTP, stateless: a fresh server per request, JSON replies.
+  app.post('/api/mcp', async (c) => {
+    const transport = new WebStandardStreamableHTTPServerTransport({
+      sessionIdGenerator: undefined,
+      enableJsonResponse: true,
+    });
+    const server = createMcpServer(deps);
+    await server.connect(transport);
+    try {
+      return await transport.handleRequest(c.req.raw);
+    } finally {
+      void server.close();
+    }
+  });
+  app.on(['GET', 'DELETE'], '/api/mcp', (c) =>
+    c.json(
+      { jsonrpc: '2.0', error: { code: -32000, message: 'Stateless server: POST JSON-RPC only.' }, id: null },
+      405,
+    ),
+  );
 
   return app;
 }

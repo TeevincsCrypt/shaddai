@@ -157,6 +157,15 @@ A multiplier change emits no `Transfer`. Any exporter built on transfer history 
 change. The ledger CSV (`date, block, issuer, symbol, contract, raw_at_event, old_mult, new_mult, delta_share_eq,
 est_usd, note`) is meant to sit next to a wallet export.
 
+## 16. Exposing the reads to agents (MCP)
+
+- Tool names: the brief used `sharetrue.portfolio`. Some clients (the Claude API among them) reject dots in tool names,
+  so the tools are `sharetrue_portfolio` etc., with the dotted name as the title.
+- `@modelcontextprotocol/sdk` 1.31.0, stateless Streamable HTTP with JSON replies: a POST whose `Accept` header is
+  missing or only `application/json` gets HTTP 406, "Client must accept both application/json and text/event-stream".
+  A plain `curl` needs `-H 'accept: application/json, text/event-stream'`. Checked in this repo's test harness.
+- Without a session, `tools/call` works with no `initialize` first, so each Vercel invocation can stand alone.
+
 ## Measured on mainnet
 
 First live run of the deployed app: Vercel, one NodeReal BSC endpoint, index built during the Vercel build from
