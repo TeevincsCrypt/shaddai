@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.cache/
+*.log
+.env
+.env.local
+registry.local.json
+
+# Vercel
+.vercel
