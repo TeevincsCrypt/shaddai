@@ -1,6 +1,7 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { getAddress, isAddress, isHex, type Address, type Hex } from 'viem';
-import { FileKV, MemoryKV, type KV } from '../core/cache.js';
+import { FileKV, LayeredKV, MemoryKV, type KV } from '../core/cache.js';
 import { Chain } from '../core/chain.js';
 import { FeedIndexer } from '../core/events.js';
 import { ListaApiSource, StaticListaSource } from '../core/lista.js';
@@ -39,6 +40,8 @@ export interface AppConfig {
   listaMarketIds: Hex[];
   extraTokens: TokenInfo[];
   cacheDir: string;
+  /** Read-only index snapshot built at deploy time (npm run index:snapshot). */
+  seedDir: string;
   maxReplayLogs: number;
 }
 
@@ -55,8 +58,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const ids = list(env.LISTA_MARKET_IDS);
   for (const id of ids)
     if (!isHex(id) || id.length !== 66) throw new Error(`LISTA_MARKET_IDS entry is not bytes32: ${id}`);
-  const extraPath = env.SHADDAI_EXTRA_TOKENS?.trim();
-  const extraTokens = extraPath ? parseExtraTokens(JSON.parse(readFileSync(extraPath, 'utf8'))) : [];
+  // Either inline JSON (handy in a hosting dashboard) or a path to a JSON file.
+  const extra = env.SHADDAI_EXTRA_TOKENS?.trim();
+  const extraTokens = extra
+    ? parseExtraTokens(JSON.parse(extra.startsWith('[') ? extra : readFileSync(extra, 'utf8')))
+    : [];
   return {
     port: Number(env.PORT ?? 8787),
     mode: env.SHADDAI_MODE === 'demo' ? 'demo' : 'live',
@@ -68,7 +74,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     ondoOracle: ondo ? getAddress(ondo.toLowerCase()) : null,
     listaMarketIds: ids as Hex[],
     extraTokens,
-    cacheDir: env.SHADDAI_CACHE_DIR ?? '.cache',
+    // Serverless file systems are read-only except /tmp.
+    cacheDir: env.SHADDAI_CACHE_DIR ?? (env.VERCEL ? '/tmp/shaddai-cache' : '.cache'),
+    seedDir: resolve(env.SHADDAI_SEED_DIR ?? 'dist/index-cache'),
     maxReplayLogs: Number(env.SHADDAI_MAX_REPLAY_LOGS ?? 20_000),
   };
 }
@@ -83,7 +91,17 @@ function startBlockFor(chain: Chain, fromBlock: bigint | null, fromDate: string)
   };
 }
 
-export function createLiveContext(cfg: AppConfig, kv: KV = new FileKV(cfg.cacheDir)): ShaddaiContext {
+/** Writable cache first, then the deploy-time snapshot if one was built. */
+export function defaultKV(cfg: AppConfig): KV {
+  const writable = new FileKV(cfg.cacheDir);
+  return existsSync(cfg.seedDir) ? new LayeredKV([writable, new FileKV(cfg.seedDir)]) : writable;
+}
+
+export function createLiveContext(
+  cfg: AppConfig,
+  kv: KV = defaultKV(cfg),
+  background?: ShaddaiContext['background'],
+): ShaddaiContext {
   const rpc = new FallbackTransport(cfg.rpcUrls.map((u) => httpTransport(u)));
   const logRpc = cfg.logRpcUrls.length
     ? new FallbackTransport(
@@ -104,6 +122,7 @@ export function createLiveContext(cfg: AppConfig, kv: KV = new FileKV(cfg.cacheD
     feed: new FeedIndexer(chain, tokens, kv, startBlockFor(chain, cfg.scanFromBlock, cfg.scanFromDate), 'feed-bsc'),
     rawAt: { maxLogs: cfg.maxReplayLogs },
     ledgerBudgetMs: 12_000,
+    background,
   };
 }
 

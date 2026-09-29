@@ -25,6 +25,11 @@ export interface ShaddaiContext {
   rawAt?: RawAtOptions;
   /** How long a scan waits for the ledger before answering with status "indexing". */
   ledgerBudgetMs: number;
+  /**
+   * Keeps unfinished work alive after the response is sent. Serverless hosts
+   * freeze a function once it responds unless told otherwise (Vercel: waitUntil).
+   */
+  background?: (work: Promise<unknown>) => void;
 }
 
 const ledgerJobs = new WeakMap<ShaddaiContext, TtlCache<LedgerSection>>();
@@ -163,6 +168,7 @@ export async function scanAddress(
   );
   let ledger: LedgerSection;
   if (settled === TIMEOUT) {
+    ctx.background?.(job.catch(() => undefined));
     const snap = ctx.feed.snapshot();
     ledger = { status: 'indexing', rows: [], progress: snap.progress };
   } else ledger = settled;
@@ -199,7 +205,9 @@ export async function getFeed(ctx: ShaddaiContext, budgetMs = 5_000): Promise<Fe
   const header = await chain.getBlock(headNumber);
   const head = { number: headNumber, timestamp: header.timestamp };
   const probes = await probeTokens(chain, tokens, null, headNumber, head.timestamp, { ondoOracle: ctx.ondoOracle });
-  const r = await withTimeout(ctx.feed.refresh(head), budgetMs).catch((e: Error) => e);
+  const refresh = ctx.feed.refresh(head);
+  const r = await withTimeout(refresh, budgetMs).catch((e: Error) => e);
+  if (r === TIMEOUT) ctx.background?.(refresh.catch(() => undefined));
   const snap = ctx.feed.snapshot();
   return {
     mode: ctx.mode,

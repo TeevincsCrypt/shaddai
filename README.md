@@ -31,23 +31,50 @@ npm start            # API + web app on http://localhost:8787
 
 Node 20+ is required. `.npmrc` sets `legacy-peer-deps` because npm 10's peer resolver crashes on this dependency set.
 
-## Configuration
+## Deploy on Vercel
 
-Everything is optional. With no configuration Shaddai uses public BSC RPC endpoints, DexScreener for marks and the
-public Lista API for market discovery. See [`.env.example`](.env.example).
+The repo deploys as-is: `vercel.json` builds the web app as static files, runs the API as one Node function
+(`api/index.ts`, the same Hono app as `npm start`), and routes `/api/*` to it.
 
-| Variable                            | Default                          | What it does                                                                                                                     |
-| ----------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `BSC_RPC_URLS`                      | publicnode, bnbchain dataseed, … | Comma-separated JSON-RPC endpoints, tried in order with failover. An archive node makes `raw_at_event` exact without log replay. |
-| `BSC_LOGS_RPC_URLS`                 | same as above                    | Separate endpoints for `eth_getLogs`.                                                                                            |
-| `SHADDAI_SCAN_FROM_BLOCK` / `_DATE` | `2026-05-01`                     | Where the multiplier-event index starts. The block wins over the date.                                                           |
-| `SHADDAI_LOG_CHUNK`                 | `50000`                          | Starting `eth_getLogs` window; halves automatically when a node rejects the range.                                               |
-| `ONDO_SSO_ADDRESS`                  | unset                            | Ondo SyntheticSharesOracle on BSC. Unset = Ondo rows use a wallet multiplier if the token has one, else 1:1 and say so.          |
-| `LISTA_MARKET_IDS`                  | unset                            | Extra Moolah market ids (bytes32) to check.                                                                                      |
-| `SHADDAI_EXTRA_TOKENS`              | unset                            | JSON file of extra tokens, e.g. confirmed xStocks addresses: `[{"symbol","ticker","issuer","address","name"?}]`.                 |
-| `SHADDAI_MODE`                      | `live`                           | `demo` serves every address from the fixture chain.                                                                              |
-| `SHADDAI_MAX_REPLAY_LOGS`           | `20000`                          | Refuse to replay more Transfer logs than this for one token (busy contracts).                                                    |
-| `PORT`                              | `8787`                           |                                                                                                                                  |
+1. On [vercel.com/new](https://vercel.com/new), import the GitHub repo. Leave the framework preset alone; `vercel.json`
+   sets the build command and output directory.
+2. Add environment variables (next section) under **Settings → Environment Variables**, for Production and Preview.
+3. Deploy. Vercel deploys Production from the default branch, so merge to `main` first; other branches get Preview URLs.
+4. Check `https://<your-app>/api/status` (mode, RPC health, index progress), then `https://<your-app>/?a=demo`.
+
+Environment variables apply only to new deployments. After adding or changing one, redeploy (Deployments → ⋯ → Redeploy).
+
+**What is different on Vercel.** Functions are short-lived and their disk is read-only except `/tmp`, so:
+
+- The build runs `npm run index:snapshot`, which indexes every multiplier event up to the build's block and ships it with
+  the function. A cold function reads that snapshot and fetches only newer blocks. If RPC is unreachable during the build,
+  the step logs why and the function indexes at runtime instead; the build does not fail.
+- Runtime cache goes to `/tmp/shaddai-cache` (per instance, not shared).
+- When a ledger takes longer than the request budget, the page shows "indexing" and polls; the unfinished work keeps
+  running through Vercel's `waitUntil`, up to the function's 60 s limit (`maxDuration` in `vercel.json`).
+
+## Environment variables
+
+None are required. With nothing set, Shaddai uses public BSC RPC, DexScreener and the public Lista API. On Vercel, set at
+least `BSC_RPC_URLS`: public endpoints rate-limit shared cloud IPs.
+
+| Variable                     | Where the value comes from                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BSC_RPC_URLS`               | Sign up with an RPC provider that serves BNB Smart Chain mainnet (NodeReal, QuickNode, Alchemy, Ankr, Chainstack, GetBlock all do), create a BSC mainnet endpoint and copy its HTTPS URL. List yours first and a public one after it as fallback, comma-separated: `https://<your-endpoint>,https://bsc-rpc.publicnode.com`. A plan with archive data makes the ledger's `raw_at_event` an exact historical read instead of a log replay. |
+| `SHADDAI_SCAN_FROM_BLOCK`    | Open the earliest bStock on BscScan (for example [NVDAB](https://bscscan.com/token/0x02Fca66C1D1aFB4E2A7884261eB00F63598a7436)), go to **Contract**, click the creation transaction next to "Contract Creator", and copy its block number. Use the smallest across the tokens you care about. Without it the index starts at `SHADDAI_SCAN_FROM_DATE` (default `2026-05-01`), which only costs a longer first scan.                       |
+| `ONDO_SSO_ADDRESS`           | The BSC address of Ondo's SyntheticSharesOracle. It is not published next to the token list; check Ondo's contract address page, or ask Ondo. Unset, Ondo rows show 1 token = 1 share and say so. After setting it, `npm run probe` should show Ondo tokens as `ondo-svalue`.                                                                                                                                                             |
+| `SHADDAI_EXTRA_TOKENS`       | Tokens not in the built-in registry, such as xStocks once you have confirmed their BSC addresses (check the deployer on BscScan). Inline JSON works in the Vercel dashboard: `[{"symbol":"NVDAx","ticker":"NVDA","issuer":"xStocks","address":"0x…"}]`. Locally it can also be a path to a JSON file.                                                                                                                                     |
+| `LISTA_MARKET_IDS`           | Usually unnecessary: markets are found through the Lista API. To pin one, open the market on [lista.org/lending](https://lista.org/lending); the URL ends in its 66-character `0x…` id. Comma-separate several.                                                                                                                                                                                                                           |
+| `BSC_LOGS_RPC_URLS`          | Only if your main endpoint refuses `eth_getLogs` (the scan's "Multiplier events" check says so). Same format as `BSC_RPC_URLS`.                                                                                                                                                                                                                                                                                                           |
+| `SHADDAI_SCAN_FROM_DATE`     | A `YYYY-MM-DD` date, used when no start block is set.                                                                                                                                                                                                                                                                                                                                                                                     |
+| `SHADDAI_LOG_CHUNK`          | Starting `eth_getLogs` window (default `50000`). It halves automatically on range errors; lower it only if your provider documents a smaller limit.                                                                                                                                                                                                                                                                                       |
+| `SHADDAI_MAX_REPLAY_LOGS`    | Cap on Transfer logs replayed per token (default `20000`). Above it, the ledger uses the current balance and says so.                                                                                                                                                                                                                                                                                                                     |
+| `SHADDAI_SNAPSHOT_BUDGET_MS` | Time the deploy-time index snapshot may take (default `240000`).                                                                                                                                                                                                                                                                                                                                                                          |
+| `SHADDAI_MODE`               | `demo` serves every address from the fixture chain. Leave unset for live data.                                                                                                                                                                                                                                                                                                                                                            |
+
+Local only, set automatically on Vercel: `PORT` (default `8787`), `SHADDAI_CACHE_DIR` (`.cache`; `/tmp/shaddai-cache`
+on Vercel), `SHADDAI_SEED_DIR` (`dist/index-cache`). Locally, copy [`.env.example`](.env.example) to `.env` and export it
+(for example `set -a; source .env; set +a; npm start`).
 
 ## How it reads the chain
 
@@ -126,7 +153,8 @@ the CSV label it as demo data.
 ```
 src/core/       chain reads, unit math, probing, ledger, collateral, CSV (no framework code)
 src/fixtures/   fixture chain + demo scenario
-src/server/     Hono app, config, entrypoint
+src/server/     Hono app, config, local entrypoint, deploy-time index snapshot
+api/index.ts    Vercel function wrapping the same Hono app
 web/            React statement UI (Vite)
 test/           vitest suites (units, events/timeline, replay, end-to-end demo scan, API)
 docs/DEVEX.md   developer-experience report

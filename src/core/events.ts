@@ -258,6 +258,7 @@ export class FeedIndexer {
   }
 
   private async save() {
+    if (this.scannedTo === null || this.fromBlock === null) return; // nothing scanned yet
     const shape: FeedCacheShape = {
       version: CACHE_VERSION,
       tokensKey: this.tokensKey,
@@ -273,6 +274,13 @@ export class FeedIndexer {
       effectiveBlocks: Object.fromEntries([...this.effectiveBlocks].map(([k, v]) => [k, v.toString()])),
     };
     await this.kv.set(this.cacheKey, shape);
+  }
+
+  /** Loads persisted state, resolves the start block, and returns the next block to scan. */
+  async nextBlock(): Promise<bigint> {
+    await this.load();
+    if (this.fromBlock === null) this.fromBlock = await this.startBlock();
+    return this.scannedTo === null ? this.fromBlock : this.scannedTo + 1n;
   }
 
   /** Bring the index up to `head`. Concurrent callers share one scan. */

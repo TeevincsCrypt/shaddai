@@ -44,6 +44,27 @@ export class FileKV implements KV {
   }
 }
 
+/**
+ * Reads from each layer in order and writes to the first. Used on serverless
+ * hosts: a writable scratch dir first, then a read-only snapshot shipped with
+ * the deployment.
+ */
+export class LayeredKV implements KV {
+  constructor(private readonly layers: KV[]) {
+    if (layers.length === 0) throw new Error('LayeredKV needs at least one layer');
+  }
+  async get<T>(key: string): Promise<T | undefined> {
+    for (const l of this.layers) {
+      const v = await l.get<T>(key);
+      if (v !== undefined) return v;
+    }
+    return undefined;
+  }
+  async set<T>(key: string, value: T): Promise<void> {
+    await this.layers[0]!.set(key, value);
+  }
+}
+
 /** Small in-process TTL cache with single-flight. */
 export class TtlCache<V> {
   private m = new Map<string, { at: number; p: Promise<V> }>();

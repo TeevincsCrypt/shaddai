@@ -17,5 +17,5 @@
     "allowImportingTsExtensions": false,
     "types": ["node"]
   },
-  "include": ["src", "web/src", "test", "scripts", "vite.config.ts", "vitest.config.ts"]
+  "include": ["api", "src", "web/src", "test", "scripts", "vite.config.ts", "vitest.config.ts"]
 }
