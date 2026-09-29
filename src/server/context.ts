@@ -39,6 +39,8 @@ export interface AppConfig {
   scanFromDate: string;
   logChunk: number;
   ondoOracle: Address | null;
+  /** Where ondoOracle came from: the env var, or on-chain discovery at deploy time. */
+  ondoOracleSource: 'env' | 'discovered' | null;
   listaMarketIds: Hex[];
   extraTokens: TokenInfo[];
   cacheDir: string;
@@ -65,6 +67,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const extraTokens = extra
     ? parseExtraTokens(JSON.parse(extra.startsWith('[') ? extra : readFileSync(extra, 'utf8')))
     : [];
+  const seedDir = resolve(env.SHADDAI_SEED_DIR ?? 'dist/index-cache');
+  const discovered = ondo ? null : readDiscoveredOracle(seedDir);
   return {
     port: Number(env.PORT ?? 8787),
     mode: env.SHADDAI_MODE === 'demo' ? 'demo' : 'live',
@@ -74,14 +78,27 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     scanFromBlock: env.SHADDAI_SCAN_FROM_BLOCK ? BigInt(env.SHADDAI_SCAN_FROM_BLOCK) : null,
     scanFromDate: env.SHADDAI_SCAN_FROM_DATE ?? '2026-05-01',
     logChunk: Number(env.SHADDAI_LOG_CHUNK ?? 50_000),
-    ondoOracle: ondo ? getAddress(ondo.toLowerCase()) : null,
+    ondoOracle: ondo ? getAddress(ondo.toLowerCase()) : discovered,
+    ondoOracleSource: ondo ? 'env' : discovered ? 'discovered' : null,
     listaMarketIds: ids as Hex[],
     extraTokens,
     // Serverless file systems are read-only except /tmp.
     cacheDir: env.SHADDAI_CACHE_DIR ?? (env.VERCEL ? '/tmp/shaddai-cache' : '.cache'),
-    seedDir: resolve(env.SHADDAI_SEED_DIR ?? 'dist/index-cache'),
+    seedDir,
     maxReplayLogs: Number(env.SHADDAI_MAX_REPLAY_LOGS ?? 20_000),
   };
+}
+
+export const ONDO_DISCOVERY_FILE = 'ondo-oracle.json';
+
+/** Oracle address found and verified by the deploy-time discovery, if any. */
+function readDiscoveredOracle(seedDir: string): Address | null {
+  try {
+    const r = JSON.parse(readFileSync(join(seedDir, ONDO_DISCOVERY_FILE), 'utf8')) as { found?: string | null };
+    return r.found && isAddress(r.found, { strict: false }) ? getAddress(r.found.toLowerCase()) : null;
+  } catch {
+    return null;
+  }
 }
 
 function startBlockFor(chain: Chain, fromBlock: bigint | null, fromDate: string) {
@@ -130,7 +147,7 @@ export function createLiveContext(
       customRpc: cfg.customRpc,
       logRpc: cfg.logRpcUrls.length > 0,
       snapshotFile: existsSync(join(cfg.seedDir, 'feed-bsc.json')),
-      ondoOracle: cfg.ondoOracle !== null,
+      ondoOracle: cfg.ondoOracleSource ?? 'none',
       extraTokens: String(cfg.extraTokens.length),
       scanStart: cfg.scanFromBlock !== null ? `block ${cfg.scanFromBlock}` : `date ${cfg.scanFromDate}`,
     },

@@ -102,6 +102,8 @@ export interface FakeScenario {
   moolah?: { address: Address; markets: FakeMoolahMarket[] };
   pairs?: FakePair[];
   ondoOracle?: { address: Address; values: Map<Address, { sValue: bigint; paused: boolean }> };
+  /** Arbitrary extra logs (discovery tests: oracle updates, decoys). */
+  extraLogs?: { address: Address; topics: Hex[]; data: Hex; block: bigint }[];
   /** Serve historical eth_call. False mimics a pruned node (128-block window). */
   archive: boolean;
   /** eth_getLogs range cap, to exercise adaptive chunking. */
@@ -276,6 +278,16 @@ export class FakeChain implements RpcTransport {
         });
       });
     }
+    (this.s.extraLogs ?? []).forEach((l, i) =>
+      logs.push({
+        address: getAddress(l.address),
+        topics: l.topics,
+        data: l.data,
+        blockNumber: l.block,
+        logIndex: 1000 + i,
+        transactionHash: tx(),
+      }),
+    );
     logs.sort((a, b) =>
       a.blockNumber === b.blockNumber ? a.logIndex - b.logIndex : a.blockNumber < b.blockNumber ? -1 : 1,
     );

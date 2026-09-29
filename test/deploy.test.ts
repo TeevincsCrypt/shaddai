@@ -13,7 +13,9 @@ import { FileKV, LayeredKV, MemoryKV } from '../src/core/cache.js';
 import { StaticListaSource } from '../src/core/lista.js';
 import { StaticPriceSource } from '../src/core/prices.js';
 import { scanAddress, type ShaddaiContext } from '../src/core/scan.js';
-import { buildDemoScenario, DEMO_ADDRESS } from '../src/fixtures/demo.js';
+import { buildDemoScenario, DEMO_ADDRESS, DEMO_ONDO_ORACLE } from '../src/fixtures/demo.js';
+import { MAINNET_TOKENS } from '../src/core/registry.js';
+import { keccak256, pad, toHex, type Hex } from 'viem';
 import { FakeChain } from '../src/fixtures/fake-chain.js';
 import { createLiveContext, defaultKV, loadConfig } from '../src/server/context.js';
 import { buildSnapshot } from '../src/server/snapshot.js';
@@ -31,7 +33,17 @@ const tmp = () => {
 };
 
 beforeAll(async () => {
-  fake = new FakeChain({ ...buildDemoScenario(NOW, () => NOW), maxLogRange: 1_000_000n });
+  const sc = { ...buildDemoScenario(NOW, () => NOW), maxLogRange: 1_000_000n };
+  // The demo oracle also emits per-asset update events, so deploy-time discovery can find it.
+  const at = new FakeChain(sc).blockAt(NOW - 3 * 86_400);
+  const ondoTokens = MAINNET_TOKENS.filter((t) => t.model === 'ondo').slice(0, 3);
+  sc.extraLogs = ondoTokens.map((t, i) => ({
+    address: DEMO_ONDO_ORACLE,
+    topics: [keccak256(toHex('SValueUpdated(address,uint128)')), pad(t.address.toLowerCase() as Hex, { size: 32 })],
+    data: '0x' as Hex,
+    block: at + BigInt(i * 1000),
+  }));
+  fake = new FakeChain(sc);
   server = createServer(async (req, res) => {
     let body = '';
     for await (const chunk of req) body += chunk;
@@ -114,6 +126,12 @@ describe('deploy-time snapshot + cold function', () => {
     expect(r.ledger.status).toBe('ready');
     const nvda = r.ledger.rows.filter((l) => l.token.symbol === 'NVDAB' && l.status === 'effective');
     expect(nvda.map((l) => l.deltaShareEq)).toEqual(['0.0085', '0.0085']);
+    // Deploy-time discovery found the Ondo oracle and the runtime adopted it.
+    expect(snap.ondoOracle).toBe(DEMO_ONDO_ORACLE);
+    expect(loadConfig(env)).toMatchObject({ ondoOracle: DEMO_ONDO_ORACLE, ondoOracleSource: 'discovered' });
+    const nvdaOn = r.portfolio.rows.find((x) => x.token.symbol === 'NVDAon' && x.location.kind === 'wallet')!;
+    expect(nvdaOn).toMatchObject({ raw: '5', shareEq: '5.0105', shareEqSource: 'sValue' });
+    expect(lines.some((l) => l.includes('ondo discovery: SyntheticSharesOracle'))).toBe(true);
     // Index top-up needed at most one range request (plus none for replay: archive state is available).
     expect((fake.calls.eth_getLogs ?? 0) - before).toBeLessThanOrEqual(1);
     expect(r.portfolio.rows.find((x) => x.token.symbol === 'NVDAB' && x.location.kind === 'venus')).toBeDefined();
@@ -132,7 +150,7 @@ describe('deploy-time snapshot + cold function', () => {
     expect(status.feed.status).toBe('ready');
     expect(status.feed.scannedTo).toBe(snap.scannedTo?.toString());
     expect(status.feed.events).toBe(snap.events);
-    expect(status.config).toMatchObject({ customRpc: true, snapshotFile: true });
+    expect(status.config).toMatchObject({ customRpc: true, snapshotFile: true, ondoOracle: 'discovered' });
     expect(text).not.toContain('SECRET-KEY');
   });
 

@@ -1,12 +1,16 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { FileKV } from '../core/cache.js';
+import { discoverOndoOracle, ONDO_ORACLE_SEARCH_HINTS } from '../core/ondo-discovery.js';
 import type { ShaddaiContext } from '../core/scan.js';
-import { createLiveContext, type AppConfig } from './context.js';
+import { createLiveContext, ONDO_DISCOVERY_FILE, type AppConfig } from './context.js';
 
 export interface SnapshotOptions {
   budgetMs?: number;
   step?: bigint;
+  /** Time for Ondo oracle discovery when ONDO_SSO_ADDRESS is unset (0 skips it). */
+  ondoDiscoveryMs?: number;
+  ondoLookbackBlocks?: bigint;
   log?: (line: string) => void;
   /** Override pieces of the live context (tests). */
   tweak?: (ctx: ShaddaiContext) => void;
@@ -56,5 +60,34 @@ export async function buildSnapshot(cfg: AppConfig, opts: SnapshotOptions = {}) 
     }
   }
   const s = ctx.feed.snapshot();
-  return { complete, scannedTo: s.scannedTo, events: s.decoded.length };
+
+  // Ondo's oracle address is not published; look for it on-chain once per deploy.
+  let ondoOracle: string | null = cfg.ondoOracle;
+  const ondoTokens = ctx.tokens.filter((t) => t.model === 'ondo');
+  const discoveryMs = opts.ondoDiscoveryMs ?? 90_000;
+  if (!cfg.ondoOracle && ondoTokens.length && discoveryMs > 0) {
+    try {
+      const d = await discoverOndoOracle(ctx.chain, ondoTokens, head, {
+        budgetMs: discoveryMs,
+        lookbackBlocks: opts.ondoLookbackBlocks,
+        hints: ONDO_ORACLE_SEARCH_HINTS,
+        log,
+      });
+      writeFileSync(join(cfg.seedDir, ONDO_DISCOVERY_FILE), JSON.stringify(d, null, 2));
+      ondoOracle = d.found;
+      log(
+        d.found
+          ? `ondo discovery: SyntheticSharesOracle ${d.found} answered getSValue() for ${d.answered}/${d.total} Ondo tokens; using it.`
+          : `ondo discovery: not found (${d.notes.join(' ')})`,
+      );
+      for (const c of d.candidates.slice(0, 5)) {
+        log(
+          `ondo discovery: candidate ${c.address} (${c.source}) tokens seen ${c.tokensSeen}, getSValue answered ${c.answered}/${d.total}, topics ${c.eventTopics.join(',') || '-'}`,
+        );
+      }
+    } catch (e) {
+      log(`ondo discovery skipped: ${(e as Error).message}`);
+    }
+  }
+  return { complete, scannedTo: s.scannedTo, events: s.decoded.length, ondoOracle };
 }

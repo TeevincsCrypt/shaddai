@@ -31,7 +31,8 @@ export interface RawLog {
 }
 
 export interface LogFilter {
-  address: Address | Address[];
+  /** Omit to match every contract (discovery scans). */
+  address?: Address | Address[];
   topics: (Hex | Hex[] | null)[];
   fromBlock: bigint;
   toBlock: bigint;
@@ -220,7 +221,6 @@ export class Chain {
     }
     const results: RawLog[] = [];
     let fatal: unknown;
-    const addr = Array.isArray(filter.address) ? filter.address : filter.address;
 
     const worker = async () => {
       while (queue.length && !fatal) {
@@ -239,7 +239,12 @@ export class Chain {
               removed?: boolean;
             }[]
           >('eth_getLogs', [
-            { address: addr, topics: filter.topics, fromBlock: numberToHex(from), toBlock: numberToHex(to) },
+            {
+              ...(filter.address === undefined ? {} : { address: filter.address }),
+              topics: filter.topics,
+              fromBlock: numberToHex(from),
+              toBlock: numberToHex(to),
+            },
           ]);
           for (const l of logs) {
             if (l.removed) continue;
