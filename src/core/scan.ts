@@ -125,6 +125,7 @@ export async function scanAddress(
 
   const exposure = new Map<Address, string[]>();
   for (const pos of collateral.positions) {
+    if (pos.side === 'borrow') continue;
     const arr = exposure.get(pos.token.address) ?? [];
     arr.push(`${pos.protocol} (${pos.market.label})`);
     exposure.set(pos.token.address, arr);

@@ -169,9 +169,10 @@ backwards from the current balance, else the current balance with a note. Kinds:
   fallback), `balanceOf × exchangeRateStored`, `checkMembership`, and the Venus oracle's `getUnderlyingPrice`, which is
   compared with the DEX mark to tell a per-raw-token oracle from a per-share one once the multiplier is more than 0.5%
   from 1.
-- Lista Lending (Moolah `0x8F73…5D8C`): candidate markets from the Lista API, each verified on-chain with
-  `idToMarketParams()`, then `position(id, user)`. If the API is unreachable, wallet holdings of Lista-listed tickers get
-  an info note instead.
+- Lista Lending (Moolah `0x8F73…5D8C`): candidate markets from the Lista API where a registry token is the collateral
+  _or_ the loan asset, each verified on-chain with `idToMarketParams()`, then `position(id, user)`. Collateral, lent-out
+  tokens (supply shares) and borrowed tokens (borrow shares, a debt, shown on the Collateral tab only) are all reported.
+  If the API is unreachable, wallet holdings of Lista-listed tickers get an info note instead.
 - V2 LP positions in the pools DexScreener reports. V3 positions are not scanned.
 - Severity: **info** (multiplier within 1% of 1, nothing scheduled), **watch** (a change is scheduled, or the Ondo oracle
   is paused), **alert** (multiplier more than 1% from 1, or a split-sized change scheduled).
@@ -203,7 +204,8 @@ Still open:
   checked"), but `position()` has not been read for a real borrower. To check one, open
   [NVDAB transfers involving Lista's Moolah contract](https://bscscan.com/token/0x02Fca66C1D1aFB4E2A7884261eB00F63598a7436?a=0x8F73b65B4caAf64FBA2aF91cC5D4a2A1318E5D8C),
   take the **From** address of a transfer _into_ Moolah, and read its statement. The Collateral tab should show a Lista
-  warning with the same raw amount the depositor sent (less anything withdrawn since).
+  card (collateral or lent out) with the raw amount the depositor sent, less anything withdrawn since. A **To** address
+  of a `Borrow` transfer should show a Borrowed card.
 - No xStocks BSC address is confirmed, so none is bundled.
 
 For a demo that fires every warning live, use a wallet you control: a few dollars of NVDAB supplied to Venus, some

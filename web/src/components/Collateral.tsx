@@ -3,6 +3,12 @@ import { amount, mult, price } from '../format';
 import type { CollateralPosition } from '../../../src/core/types';
 
 const SEV_LABEL = { info: 'Info', watch: 'Watch', alert: 'Alert' } as const;
+const SIDE_LABEL: Record<CollateralPosition['side'], string> = {
+  collateral: 'Collateral',
+  lend: 'Lent out',
+  borrow: 'Borrowed',
+  lp: 'Liquidity',
+};
 const BASIS_LABEL: Record<string, string> = {
   raw: 'per raw token',
   share: 'per share (mismatch)',
@@ -25,29 +31,30 @@ function Warning({ p }: { p: CollateralPosition }) {
         ) : (
           <span className="small mono muted">{p.market.label}</span>
         )}
+        <span className={`chip ${p.side === 'borrow' ? 'watch' : 'quiet'}`}>{SIDE_LABEL[p.side]}</span>
         {p.token.demoOnly ? <span className="chip demo">Fictional</span> : null}
       </div>
       <div className="warn-body">
         {p.lines.map((l) => (
-          <p key={l} className={l.startsWith('Current raw') || l.startsWith('Your share') ? 'figures' : undefined}>
+          <p key={l} className={/^(Current raw|Your share|Supplied raw|Owed raw)/.test(l) ? 'figures' : undefined}>
             {l}
           </p>
         ))}
       </div>
       <div className="warn-grid">
         <div>
-          <div className="eyebrow">Protocol counts</div>
+          <div className="eyebrow">{p.side === 'borrow' ? 'Protocol says you owe' : 'Protocol counts'}</div>
           <div className="v raw-v">{amount(p.raw, 4)} raw</div>
         </div>
         <div>
-          <div className="eyebrow">You own</div>
+          <div className="eyebrow">{p.side === 'borrow' ? 'Owed in shares' : 'You own'}</div>
           <div className="v share-v">{amount(p.shareEq, 4)} share-eq</div>
         </div>
         <div>
           <div className="eyebrow">Multiplier</div>
           <div className="v mult-v">{mult(p.multiplier)}</div>
         </div>
-        {p.enteredAsCollateral !== null ? (
+        {p.enteredAsCollateral !== null && p.side !== 'lend' ? (
           <div>
             <div className="eyebrow">Collateral enabled</div>
             <div className="v">{p.enteredAsCollateral ? 'Yes' : 'No'}</div>

@@ -77,6 +77,7 @@ export function buildPortfolio(
     );
   }
   for (const pos of positions) {
+    if (pos.side === 'borrow') continue; // a debt, not a holding; shown on the Collateral tab
     const p = probes.get(pos.token.address);
     if (!p) continue;
     const dec = p.unit.decimals;
@@ -89,7 +90,7 @@ export function buildPortfolio(
         p,
         {
           kind: PROTOCOL_KIND[pos.protocol],
-          label: `${pos.protocol} · ${pos.market.label}`,
+          label: `${pos.protocol}${pos.side === 'lend' && pos.protocol === 'Lista' ? ' · lent' : ''} · ${pos.market.label}`,
           contract: pos.market.address,
           url: pos.market.url,
         },

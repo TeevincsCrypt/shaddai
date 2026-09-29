@@ -130,6 +130,14 @@ NVDAB collateral?" without first knowing every NVDAB market id. The public API (
 `collateral` field that is a display string, not a typed address. Shaddai uses the API only to propose candidate ids,
 then confirms each with `idToMarketParams(id).collateralToken` before reading `position(id, user)`.
 
+**Observed on mainnet:** NVDAB is not only collateral on Lista. BscScan's list of NVDAB transfers through Moolah shows
+`Borrow` transactions paying NVDAB out and `Supply` transactions paying it in, so there are markets where NVDAB is the
+loan asset. A reader that only checks `collateral` misses lenders and borrowers. Shaddai now matches markets on either
+side and reads all three `position()` fields: `collateral`, and `supplyShares` / `borrowShares` converted to tokens
+with Morpho's share math (virtual shares 1e6, virtual assets 1, rounding down for supply and up for debt). Borrowers
+get their own warning: every multiplier increase raises the value of each raw token owed, so the borrower pays the
+reinvested dividend.
+
 ## 13. Money-market oracles cannot be checked until the multiplier moves
 
 Venus's `getUnderlyingPrice(vToken)` returns USD × 1e(36 − underlying decimals) per raw unit. Whether that is a

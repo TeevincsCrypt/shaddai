@@ -31,6 +31,9 @@ const AAPLB_USDT_PAIR: Address = getAddress('0xde3000000000000000000000000000000
 const VUSDT: Address = getAddress('0xfd5840cd36d94d7229439859c0112a4185bc0255');
 export const DEMO_LISTA_MARKET_XMPLB: Hex = `0x${'de30'.repeat(15)}0001`;
 export const DEMO_LISTA_MARKET_NVDAB: Hex = `0x${'de30'.repeat(15)}0002`;
+/** NVDAB as the loan asset: the demo address lends in one market and borrows in another. */
+export const DEMO_LISTA_MARKET_NVDAB_LEND: Hex = `0x${'de30'.repeat(15)}0003`;
+export const DEMO_LISTA_MARKET_NVDAB_BORROW: Hex = `0x${'de30'.repeat(15)}0004`;
 
 export const XMPLB: TokenInfo = {
   symbol: 'XMPLB',
@@ -207,6 +210,25 @@ export function buildDemoScenario(
           collateralToken: bySymbol('NVDAB'),
           lltv: u('0.6'),
           positions: new Map(),
+        },
+        {
+          // Morpho-style shares: 1e6 shares per asset unit at inception.
+          id: DEMO_LISTA_MARKET_NVDAB_LEND,
+          loanToken: bySymbol('NVDAB'),
+          collateralToken: USDT,
+          lltv: u('0.7'),
+          totals: [u('100'), u('100') * 10n ** 6n, u('40'), u('40') * 10n ** 6n],
+          positions: new Map([[DEMO_ADDRESS, { supplyShares: u('2') * 10n ** 6n, borrowShares: 0n, collateral: 0n }]]),
+        },
+        {
+          id: DEMO_LISTA_MARKET_NVDAB_BORROW,
+          loanToken: bySymbol('NVDAB'),
+          collateralToken: USDT,
+          lltv: u('0.7'),
+          totals: [u('50'), u('50') * 10n ** 6n, u('20'), u('20') * 10n ** 6n],
+          positions: new Map([
+            [DEMO_ADDRESS, { supplyShares: 0n, borrowShares: u('0.5') * 10n ** 6n, collateral: u('500') }],
+          ]),
         },
       ],
     },

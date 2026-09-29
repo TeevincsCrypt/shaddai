@@ -126,6 +126,8 @@ export interface OracleCheck {
 export interface CollateralPosition {
   token: TokenRef;
   protocol: 'Venus' | 'Lista' | 'PancakeSwap V2';
+  /** collateral / lend: the address owns these tokens inside the protocol. borrow: it owes them. */
+  side: 'collateral' | 'lend' | 'borrow' | 'lp';
   market: { label: string; address?: Address; id?: Hex; url?: string };
   raw: string;
   shareEq: string;

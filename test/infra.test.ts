@@ -1,6 +1,7 @@
 import { getAddress, isAddress, type Address } from 'viem';
 import { describe, expect, it } from 'vitest';
-import { oracleCheck, severityFor } from '../src/core/collateral.js';
+import { oracleCheck, severityFor, sharesToAssetsDown, sharesToAssetsUp } from '../src/core/collateral.js';
+import { ListaApiSource } from '../src/core/lista.js';
 import { pickMarks } from '../src/core/prices.js';
 import type { TokenProbe } from '../src/core/probe.js';
 import { MAINNET_TOKENS, parseExtraTokens } from '../src/core/registry.js';
@@ -136,6 +137,45 @@ describe('collateral severity', () => {
     expect(oracleCheck(50.2, mark, u('2')).basis).toBe('share');
     expect(oracleCheck(99.5, mark, u('2')).basis).toBe('raw');
     expect(oracleCheck(100, mark, u('1.001')).basis).toBe('indistinguishable');
+  });
+});
+
+describe('Lista (Moolah) reads', () => {
+  it('converts Morpho-style shares with virtual shares and assets', () => {
+    // Fresh market: 1e6 shares per asset unit.
+    expect(sharesToAssetsDown(u('2') * 10n ** 6n, u('100'), u('100') * 10n ** 6n)).toBe(u('2'));
+    // After interest the exchange rate moves; down rounds against the lender, up against the borrower.
+    const down = sharesToAssetsDown(10n ** 6n + 1n, 3n, 2n * 10n ** 6n);
+    const up = sharesToAssetsUp(10n ** 6n + 1n, 3n, 2n * 10n ** 6n);
+    expect(up - down).toBe(1n);
+  });
+
+  it('proposes markets where a registry token is the loan asset as well as the collateral', async () => {
+    const id = (n: number) => `0x${n.toString(16).padStart(64, '0')}`;
+    const fetchImpl = (async (url: string) => {
+      const body = url.includes('/borrow/markets')
+        ? {
+            code: '000000000',
+            data: {
+              total: 3,
+              list: [
+                { id: id(1), collateral: 'NVDAB', loan: 'USDT' },
+                { id: id(2), collateral: 'USDT', loan: 'NVDAB' },
+                { id: id(3), collateral: 'USDT', loan: 'USD1' },
+              ],
+            },
+          }
+        : {
+            code: '000000000',
+            data: { objs: [{ marketId: id(4), loanToken: MAINNET_TOKENS[0]!.address, collateralToken: '0x' }] },
+          };
+      return new Response(JSON.stringify(body), { status: 200 });
+    }) as typeof fetch;
+    const ids = await new ListaApiSource('https://api.example', fetchImpl).candidateMarkets(
+      MAINNET_TOKENS,
+      DEMO_ADDRESS,
+    );
+    expect(ids.sort()).toEqual([id(1), id(2), id(4)]);
   });
 });
 

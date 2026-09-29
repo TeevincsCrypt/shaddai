@@ -21,6 +21,8 @@ import type { ShaddaiContext } from '../core/scan.js';
 import {
   buildDemoScenario,
   DEMO_LISTA_MARKET_NVDAB,
+  DEMO_LISTA_MARKET_NVDAB_BORROW,
+  DEMO_LISTA_MARKET_NVDAB_LEND,
   DEMO_LISTA_MARKET_XMPLB,
   DEMO_ONDO_ORACLE,
   DEMO_TOKENS,
@@ -177,7 +179,12 @@ export function demoContext(frozenAt?: number): ShaddaiContext {
     venus: { comptroller: VENUS_COMPTROLLER, known: VENUS_KNOWN_VTOKENS },
     lista: {
       moolah: LISTA_MOOLAH,
-      source: new StaticListaSource([DEMO_LISTA_MARKET_XMPLB, DEMO_LISTA_MARKET_NVDAB]),
+      source: new StaticListaSource([
+        DEMO_LISTA_MARKET_XMPLB,
+        DEMO_LISTA_MARKET_NVDAB,
+        DEMO_LISTA_MARKET_NVDAB_LEND,
+        DEMO_LISTA_MARKET_NVDAB_BORROW,
+      ]),
       extraMarketIds: [],
     },
     ondoOracle: DEMO_ONDO_ORACLE,

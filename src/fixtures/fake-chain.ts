@@ -78,6 +78,8 @@ export interface FakeMoolahMarket {
   loanToken: Address;
   collateralToken: Address;
   lltv: bigint;
+  /** [totalSupplyAssets, totalSupplyShares, totalBorrowAssets, totalBorrowShares]; zeros if omitted. */
+  totals?: [bigint, bigint, bigint, bigint];
   positions: Map<Address, { supplyShares: bigint; borrowShares: bigint; collateral: bigint }>;
 }
 
@@ -418,6 +420,10 @@ export class FakeChain implements RpcTransport {
       const m = moolah.markets.find((x) => x.id.toLowerCase() === String(args[0]).toLowerCase());
       if (fn === 'idToMarketParams') {
         return m ? [m.loanToken, m.collateralToken, ZERO, ZERO, m.lltv] : [ZERO, ZERO, ZERO, ZERO, 0n];
+      }
+      if (fn === 'market') {
+        const t = m?.totals ?? [0n, 0n, 0n, 0n];
+        return [t[0], t[1], t[2], t[3], 0n, 0n];
       }
       if (fn === 'position') {
         const p = m?.positions.get(getAddress(args[1] as Address));

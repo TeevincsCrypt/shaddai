@@ -3,7 +3,7 @@ import type { TokenInfo } from './registry.js';
 
 export interface ListaMarketSource {
   readonly label: string;
-  /** Candidate Moolah market ids whose collateral may be a registry token. Verified on-chain afterwards. */
+  /** Candidate Moolah market ids whose collateral or loan asset may be a registry token. Verified on-chain afterwards. */
   candidateMarkets(tokens: TokenInfo[], holder: Address): Promise<Hex[]>;
 }
 
@@ -22,7 +22,7 @@ const isMarketId = (v: unknown): v is Hex => typeof v === 'string' && isHex(v) &
  */
 export class ListaApiSource implements ListaMarketSource {
   readonly label = 'Lista API';
-  private marketsCache: { at: number; list: { id: Hex; collateral: string }[] } | null = null;
+  private marketsCache: { at: number; list: { id: Hex; collateral: string; loan: string }[] } | null = null;
 
   constructor(
     private readonly base: string,
@@ -39,13 +39,14 @@ export class ListaApiSource implements ListaMarketSource {
 
   private async allMarkets() {
     if (this.marketsCache && Date.now() - this.marketsCache.at < 10 * 60_000) return this.marketsCache.list;
-    const list: { id: Hex; collateral: string }[] = [];
+    const list: { id: Hex; collateral: string; loan: string }[] = [];
     for (let page = 1; page <= 20; page++) {
-      const data = await this.get<{ total: number; list: { id: string; collateral: string }[] }>(
+      const data = await this.get<{ total: number; list: { id: string; collateral: string; loan?: string }[] }>(
         `/api/moolah/borrow/markets?page=${page}&pageSize=100&chain=bsc`,
       );
       for (const m of data.list ?? [])
-        if (isMarketId(m.id)) list.push({ id: m.id, collateral: String(m.collateral ?? '') });
+        if (isMarketId(m.id))
+          list.push({ id: m.id, collateral: String(m.collateral ?? ''), loan: String(m.loan ?? '') });
       if ((data.list ?? []).length < 100 || list.length >= data.total) break;
     }
     this.marketsCache = { at: Date.now(), list };
@@ -59,17 +60,25 @@ export class ListaApiSource implements ListaMarketSource {
     await Promise.all([
       this.allMarkets()
         .then((list) => {
-          for (const m of list) if (wanted.has(m.collateral.toLowerCase())) ids.add(m.id);
+          // A registry token can be the collateral or the loan asset (lent and borrowed).
+          for (const m of list)
+            if (wanted.has(m.collateral.toLowerCase()) || wanted.has(m.loan.toLowerCase())) ids.add(m.id);
         })
         .catch((e: Error) => errors.push(e.message)),
-      this.get<{ objs?: { marketId?: string; collateralToken?: string; collateralSymbol?: string }[] }>(
-        `/api/moolah/one/holding?userAddress=${holder}&type=market`,
-      )
+      this.get<{
+        objs?: {
+          marketId?: string;
+          collateralToken?: string;
+          collateralSymbol?: string;
+          loanToken?: string;
+          loanSymbol?: string;
+        }[];
+      }>(`/api/moolah/one/holding?userAddress=${holder}&type=market`)
         .then((d) => {
           for (const o of d.objs ?? []) {
-            const hit =
-              wanted.has(String(o.collateralToken ?? '').toLowerCase()) ||
-              wanted.has(String(o.collateralSymbol ?? '').toLowerCase());
+            const hit = [o.collateralToken, o.collateralSymbol, o.loanToken, o.loanSymbol].some((v) =>
+              wanted.has(String(v ?? '').toLowerCase()),
+            );
             if (hit && isMarketId(o.marketId)) ids.add(o.marketId);
           }
         })

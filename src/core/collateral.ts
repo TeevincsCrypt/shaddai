@@ -236,6 +236,7 @@ async function venusScan(input: CollateralInput, out: CollateralOutput) {
     out.positions.push({
       token: tokenRef(token),
       protocol: 'Venus',
+      side: entered === false ? 'lend' : 'collateral',
       market: { label: vSym, address: v, url: LINKS.bscscanAddress(v) },
       raw: fmtAmount(raw, dec, dec, 0),
       shareEq: fmtAmount(shareEq, dec, dec, 0),
@@ -284,52 +285,128 @@ async function listaScan(input: CollateralInput, out: CollateralOutput) {
   const calls: ReadCall[] = idList.flatMap((id) => [
     { to: lista.moolah, abi: moolahAbi, functionName: 'idToMarketParams', args: [id] },
     { to: lista.moolah, abi: moolahAbi, functionName: 'position', args: [id, holder] },
+    { to: lista.moolah, abi: moolahAbi, functionName: 'market', args: [id] },
   ]);
   const res = await chain.readMany(calls, block);
   let verified = 0;
   idList.forEach((id, i) => {
-    const params = ok<readonly [Address, Address, Address, Address, bigint]>(res[i * 2]);
-    const pos = ok<readonly [bigint, bigint, bigint]>(res[i * 2 + 1]);
+    const params = ok<readonly [Address, Address, Address, Address, bigint]>(res[i * 3]);
+    const pos = ok<readonly [bigint, bigint, bigint]>(res[i * 3 + 1]);
+    const mkt = ok<readonly [bigint, bigint, bigint, bigint, bigint, bigint]>(res[i * 3 + 2]);
     if (!params || !pos) return;
+    const loanToken = getAddress(params[0]);
     const collateralToken = getAddress(params[1]);
-    const token = registry.get(collateralToken);
-    if (!token) return;
+    if (!registry.has(loanToken) && !registry.has(collateralToken)) return;
     verified++;
-    const collateral = pos[2];
-    if (collateral === 0n) return;
-    const probe = input.probes.get(collateralToken);
-    if (!probe) return;
-    const dec = probe.unit.decimals;
-    const shareEq = probe.mult !== null ? toUI(collateral, probe.mult) : collateral;
-    const { severity, reasons } = severityFor(probe);
-    const hasBorrow = pos[1] > 0n;
-    const lines = [
-      `${token.symbol} on this address is posted as collateral on Lista Lending (market ${short(id)}).`,
-      'Lista reads the ERC-20 balance, not balanceOfUI.',
-      `Current raw: ${fmtAmount(collateral, dec)} · multiplier: ${probe.mult !== null ? fmtMultiplier(probe.mult) : 'none found'} · share-eq: ${fmtAmount(shareEq, dec)}.`,
-      ...driftLines(probe, severity),
-    ];
-    if (hasBorrow) lines.push('This market position has an open borrow.');
-    out.positions.push({
-      token: tokenRef(token),
-      protocol: 'Lista',
-      market: { label: `Market ${short(id)}`, id, url: `https://lista.org/lending/market/bsc/${id}` },
-      raw: fmtAmount(collateral, dec, dec, 0),
-      shareEq: fmtAmount(shareEq, dec, dec, 0),
-      multiplier: probe.unit.multiplier,
-      enteredAsCollateral: true,
-      hasBorrow,
-      severity,
-      reasons,
-      lines,
-      oracle: null,
-    });
+    const [supplyShares, borrowShares, collateral] = pos;
+    const market = { label: `Market ${short(id)}`, id, url: `https://lista.org/lending/market/bsc/${id}` };
+    const multLabel = (p: TokenProbe) => (p.mult !== null ? fmtMultiplier(p.mult) : 'none found');
+
+    // Collateral side: the address owns these tokens, the market counts them raw.
+    const cProbe = registry.has(collateralToken) ? input.probes.get(collateralToken) : undefined;
+    if (cProbe && collateral > 0n) {
+      const token = registry.get(collateralToken)!;
+      const dec = cProbe.unit.decimals;
+      const shareEq = cProbe.mult !== null ? toUI(collateral, cProbe.mult) : collateral;
+      const { severity, reasons } = severityFor(cProbe);
+      const hasBorrow = borrowShares > 0n;
+      const lines = [
+        `${token.symbol} on this address is posted as collateral on Lista Lending (market ${short(id)}).`,
+        'Lista reads the ERC-20 balance, not balanceOfUI.',
+        `Current raw: ${fmtAmount(collateral, dec)} · multiplier: ${multLabel(cProbe)} · share-eq: ${fmtAmount(shareEq, dec)}.`,
+        ...driftLines(cProbe, severity),
+      ];
+      if (hasBorrow) lines.push('This market position has an open borrow.');
+      out.positions.push({
+        token: tokenRef(token),
+        protocol: 'Lista',
+        side: 'collateral',
+        market,
+        raw: fmtAmount(collateral, dec, dec, 0),
+        shareEq: fmtAmount(shareEq, dec, dec, 0),
+        multiplier: cProbe.unit.multiplier,
+        enteredAsCollateral: true,
+        hasBorrow,
+        severity,
+        reasons,
+        lines,
+        oracle: null,
+      });
+    }
+
+    // Loan side: supply shares are tokens lent out; borrow shares are tokens owed.
+    const lProbe = registry.has(loanToken) ? input.probes.get(loanToken) : undefined;
+    if (lProbe && mkt && (supplyShares > 0n || borrowShares > 0n)) {
+      const token = registry.get(loanToken)!;
+      const dec = lProbe.unit.decimals;
+      const [totalSupplyAssets, totalSupplyShares, totalBorrowAssets, totalBorrowShares] = mkt;
+      const { severity, reasons } = severityFor(lProbe);
+      const noBorrowAdvice = (l: string) => !l.includes('add borrow');
+      if (supplyShares > 0n) {
+        const raw = sharesToAssetsDown(supplyShares, totalSupplyAssets, totalSupplyShares);
+        const shareEq = lProbe.mult !== null ? toUI(raw, lProbe.mult) : raw;
+        out.positions.push({
+          token: tokenRef(token),
+          protocol: 'Lista',
+          side: 'lend',
+          market,
+          raw: fmtAmount(raw, dec, dec, 0),
+          shareEq: fmtAmount(shareEq, dec, dec, 0),
+          multiplier: lProbe.unit.multiplier,
+          enteredAsCollateral: false,
+          hasBorrow: null,
+          severity,
+          reasons,
+          lines: [
+            `${token.symbol} on this address is lent out on Lista Lending (market ${short(id)}).`,
+            'The market counts what you supplied in raw ERC-20 units, not balanceOfUI.',
+            `Supplied raw: ${fmtAmount(raw, dec)} · multiplier: ${multLabel(lProbe)} · share-eq: ${fmtAmount(shareEq, dec)} (as of the market's last interest accrual).`,
+            ...driftLines(lProbe, severity).filter(noBorrowAdvice),
+          ],
+          oracle: null,
+        });
+      }
+      if (borrowShares > 0n) {
+        const raw = sharesToAssetsUp(borrowShares, totalBorrowAssets, totalBorrowShares);
+        const shareEq = lProbe.mult !== null ? toUI(raw, lProbe.mult) : raw;
+        out.positions.push({
+          token: tokenRef(token),
+          protocol: 'Lista',
+          side: 'borrow',
+          market,
+          raw: fmtAmount(raw, dec, dec, 0),
+          shareEq: fmtAmount(shareEq, dec, dec, 0),
+          multiplier: lProbe.unit.multiplier,
+          enteredAsCollateral: null,
+          hasBorrow: true,
+          severity,
+          reasons,
+          lines: [
+            `This address has borrowed ${token.symbol} on Lista Lending (market ${short(id)}) and owes it back in raw tokens.`,
+            'Each multiplier increase makes every raw token worth more, including the ones owed, so a borrower pays the reinvested dividend.',
+            `Owed raw: ${fmtAmount(raw, dec)} · multiplier: ${multLabel(lProbe)} · owed share-eq: ${fmtAmount(shareEq, dec)} (as of the market's last interest accrual).`,
+            ...driftLines(lProbe, severity).filter(noBorrowAdvice),
+          ],
+          oracle: null,
+        });
+      }
+    }
   });
   out.checks.push({
     name: 'Lista',
     status: 'ok',
-    detail: `${discovery ? `${discovery}; ` : ''}${verified} market(s) verified on Moolah via idToMarketParams().`,
+    detail: `${discovery ? `${discovery}; ` : ''}${verified} market(s) verified on Moolah via idToMarketParams(); collateral, lending and borrowing read with position().`,
   });
+}
+
+/** Morpho-style share math (Lista Moolah is a Morpho Blue fork): virtual shares 1e6, virtual assets 1. */
+const VIRTUAL_SHARES = 10n ** 6n;
+export function sharesToAssetsDown(shares: bigint, totalAssets: bigint, totalShares: bigint): bigint {
+  return (shares * (totalAssets + 1n)) / (totalShares + VIRTUAL_SHARES);
+}
+export function sharesToAssetsUp(shares: bigint, totalAssets: bigint, totalShares: bigint): bigint {
+  const d = totalShares + VIRTUAL_SHARES;
+  return (shares * (totalAssets + 1n) + d - 1n) / d;
 }
 
 async function lpScan(input: CollateralInput, out: CollateralOutput) {
@@ -389,6 +466,7 @@ async function lpScan(input: CollateralInput, out: CollateralOutput) {
       out.positions.push({
         token: tokenRef(token),
         protocol: 'PancakeSwap V2',
+        side: 'lp',
         market: {
           label: `${e.pool.token0Symbol}/${e.pool.token1Symbol} LP`,
           address: e.pool.pair,

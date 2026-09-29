@@ -87,6 +87,24 @@ describe('demo scan (end to end on the fixture chain)', async () => {
     expect(r.collateral.positions[0]!.severity).toBe('alert');
   });
 
+  it('reads Lista lending and borrowing, not only collateral', () => {
+    const lend = r.collateral.positions.find((p) => p.protocol === 'Lista' && p.side === 'lend')!;
+    expect(lend).toMatchObject({ raw: '2', shareEq: '2.0034', severity: 'info' });
+    expect(row('NVDAB', 'lista')).toMatchObject({ raw: '2', shareEq: '2.0034' });
+    expect(row('NVDAB', 'lista')!.location.label).toMatch(/^Lista · lent · Market/);
+
+    const borrow = r.collateral.positions.find((p) => p.side === 'borrow')!;
+    expect(borrow).toMatchObject({ protocol: 'Lista', raw: '0.5', shareEq: '0.50085', hasBorrow: true });
+    expect(borrow.lines.join(' ')).toMatch(/a borrower pays the reinvested dividend/);
+    // A debt is not a holding: no portfolio row, no ledger exposure note.
+    expect(
+      r.portfolio.rows
+        .filter((x) => x.token.symbol === 'NVDAB')
+        .map((x) => x.raw)
+        .sort(),
+    ).toEqual(['10', '12.4', '2']);
+  });
+
   it('exports the CSV with the brief’s columns and skips overwritten schedules', () => {
     const csv = ledgerToCsv(r.ledger.rows, { demo: true });
     const lines = csv.trim().split('\r\n');
