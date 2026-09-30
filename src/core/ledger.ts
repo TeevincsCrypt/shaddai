@@ -136,3 +136,34 @@ export async function buildLedger(input: LedgerInput): Promise<LedgerRow[]> {
   rows.sort((a, b) => b.effectiveAt - a.effectiveAt || a.token.symbol.localeCompare(b.token.symbol));
   return rows;
 }
+
+/**
+ * Ondo factors can already be above 1.0 when the index starts, so the ledger may
+ * not hold every change. Says so per held Ondo token instead of implying full history.
+ */
+export function ondoHistoryNotices(
+  rows: LedgerRow[],
+  held: { symbol: string; address: Address; mult: bigint | null }[],
+  indexStart: string,
+): string[] {
+  const out: string[] = [];
+  for (const t of held) {
+    const first = rows
+      .filter((r) => r.token.address === t.address && r.eventLayout === 'ondo-svalue' && r.status === 'effective')
+      .sort((a, b) => a.effectiveAt - b.effectiveAt)[0];
+    if (first) {
+      const old = parseFixed(first.oldMultiplier);
+      if (old > ONE) {
+        const day = new Date(first.effectiveAt * 1000).toISOString().slice(0, 10);
+        out.push(
+          `${t.symbol}: the first Ondo update in this index (${day}) starts from sValue ${first.oldMultiplier}, so earlier changes, before ${indexStart}, are not listed.`,
+        );
+      }
+    } else if (t.mult !== null && t.mult > ONE) {
+      out.push(
+        `${t.symbol}: sValue is ${decimalString(t.mult, 18)} but this index holds no update for it; those changes happened before ${indexStart} and are not listed.`,
+      );
+    }
+  }
+  return out;
+}
