@@ -298,9 +298,10 @@ nothing can be bought through it, and it is labelled that way.
 **If Buy says "compliance restriction (code 40304)".** Binance declined the request. It limits tokenized-stock services
 by jurisdiction, and the location of the server calling the API is one of the inputs. On Vercel, functions run in
 Washington, D.C. (`iad1`) unless the project picks another region. Open `/api/buy/diagnose`: it shows the region and
-which calls Binance refuses (all of them, or only the equity-token quote). If the team operates from a place where
-these products are offered, set the function region there (Vercel → Settings → Functions → Function Region, or
-`"regions"` in `vercel.json`) and redeploy. A region is not a way around a restriction that applies to you or your users.
+which calls Binance refuses (all of them, or only the equity-token quote). This project pins its functions to
+Singapore (`"regions": ["sin1"]` in `vercel.json`), the region the hackathon organizers advised for the Binance Web3
+API; `/api/status` shows the region a deploy actually runs in. A region is not a way around a restriction that applies
+to you or your users.
 
 Spot only, BSC only. Live buys use small amounts from a wallet the team funds; the server caps each ticket
 (`SHADDAI_BUY_MAX_USD`). The demo runs the whole flow on a fixture API with signing disabled.
