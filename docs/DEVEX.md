@@ -265,6 +265,25 @@ Dividend reinvestments (all took effect at 00:00 UTC):
   before the first bStock (102,441,229). An index started at the first bStock would have missed Ondo history.
 - DexScreener marks exist for NVDAB and NVDAon, but neither pairs with USDT in a PancakeSwap V2 pool, so reserve-based
   pricing had nothing to price for NVDA.
+- With V3 added (30 Sep 2026, block ~124,811,000, $20 of USDT, through the MCP tool `sharetrue_quoteBuy`), the bStock
+  wrappers priced in PancakeSwap V3 USDT pools with a 0.25% fee tier. NVDAon and GOOGLon priced in 1% fee-tier pools.
+  AAPLon and TSLAon had only V2 pools against a token DexScreener calls ASX, so they had no USDT price.
+
+  | $20 of | Wrapper | Raw out   | Factor   | Share-eq out |
+  | ------ | ------- | --------- | -------- | ------------ |
+  | NVDA   | NVDAB   | 0.0874206 | 1.000778 | 0.0874887    |
+  | NVDA   | NVDAon  | 0.0861671 | 1.001715 | 0.0863149    |
+  | GOOGL  | GOOGLB  | 0.0585004 | 1.000478 | 0.0585283    |
+  | GOOGL  | GOOGLon | 0.0583950 | 1.002460 | 0.0585387    |
+  | AAPL   | AAPLB   | 0.0604304 | 1.000604 | 0.0604669    |
+  | TSLA   | TSLAB   | 0.0563895 | 1        | 0.0563895    |
+
+  For GOOGL, counting tokens picks GOOGLB and counting shares picks GOOGLon, because the Ondo factor is larger. For
+  NVDA both counts pick NVDAB, and the 1% pool fee accounts for most of NVDAon's 1.36% shortfall.
+
+- Running three quotes at once (about 15 Binance calls in two seconds) drew one `HTTP 429 Rate limit exceeded`. Since
+  then, a 40304 on the RWA list stops the per-wrapper Binance quotes.
+- The MCP tools answered from the Vercel deploy over Streamable HTTP to a Claude Code client with live data.
 
 ## Verified against the reference contract
 

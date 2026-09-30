@@ -4,7 +4,7 @@ import { v3QuoterAbi } from '../src/core/abi.js';
 import type { Chain } from '../src/core/chain.js';
 import { StaticPriceSource } from '../src/core/prices.js';
 import { PANCAKE_V3_QUOTER } from '../src/core/registry.js';
-import { prepareBuy, quoteText, quoteWithFallback } from '../src/core/buy.js';
+import { BUY_COPY, prepareBuy, quoteText, quoteWithFallback } from '../src/core/buy.js';
 import { OnchainQuoteApi } from '../src/core/onchain-quote.js';
 import { TradeApiError } from '../src/core/trade-api.js';
 import { DEMO_ADDRESS, DEMO_USDT } from '../src/fixtures/demo.js';
@@ -137,5 +137,27 @@ describe('on-chain quote fallback', () => {
     expect(cfg).toMatchObject({ enabled: true, trading: false, api: 'On-chain pools (PancakeSwap V2/V3)' });
     const q = await app.request('/api/buy/quote?ticker=AAPL&usd=10');
     expect(((await q.json()) as { quoteOnly: boolean }).quoteOnly).toBe(true);
+  });
+});
+
+describe('compliance short-circuit', () => {
+  it('skips Binance quotes once the RWA list is refused with 40304', async () => {
+    const ctx = ctxWithFallback(true);
+    const api = ctx.buy!.api as FakeTradeApi;
+    api.rwaTokens = async () => {
+      throw new TradeApiError(
+        'RWA token list: Service not available due to compliance restriction (code 40304)',
+        40304,
+      );
+    };
+    let quotes = 0;
+    api.quote = async () => {
+      quotes++;
+      return [];
+    };
+    const q = await quoteWithFallback(ctx, { ticker: 'AAPL', usd: 20 });
+    expect(quotes).toBe(0);
+    expect(q.wrappers.every((w) => w.reasons[0] === BUY_COPY.compliance)).toBe(true);
+    expect(q.fallback!.best).toBe(AAPLB);
   });
 });
