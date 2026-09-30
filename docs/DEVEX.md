@@ -284,6 +284,22 @@ Dividend reinvestments (all took effect at 00:00 UTC):
 - Running three quotes at once (about 15 Binance calls in two seconds) drew one `HTTP 429 Rate limit exceeded`. Since
   then, a 40304 on the RWA list stops the per-wrapper Binance quotes.
 - The MCP tools answered from the Vercel deploy over Streamable HTTP to a Claude Code client with live data.
+- The ten Ondo sValue changes (index from 1 May 2026): AAPLon 11 May and 10 Aug, NVDAon 4 Jun, GOOGLon 8 Jun,
+  SPYon 18 Jun, QQQon 23 Jun, then NVDAon, GOOGLon, SPYon and QQQon together in one transaction on 28 Sep at 23:10:58
+  UTC. Every other write landed between 00:05 and 00:08 UTC. Each applies in the block it is written; there is no
+  schedule.
+- At the first change the index holds, every Ondo factor is already above 1.0 (AAPLon 1.002124, NVDAon 1.000117,
+  GOOGLon 1.001589, SPYon 1.005923, QQQon 1.002578). So either there were earlier changes before 1 May, or the tokens
+  started above 1.0. This index cannot tell which.
+- The same dividend on two issuers. AAPL: bStocks 1.000603906 effective 10 Aug 00:00:00 UTC (scheduled 649 s ahead),
+  and the Ondo ratio 1.000603269 written at 00:05:53 UTC the same day. NVDA: bStocks 1.000778224 effective 10 Sep, and
+  the next NVDAon change (ratio 1.000782465) 18 days later. GOOGL: bStocks 1.000478059 effective 4 Sep, and the next
+  GOOGLon change (ratio 1.000449457) on 28 Sep. Between those dates the two wrappers of one stock carry different
+  factors.
+- The Lista borrower from the first run, rechecked through `sharetrue_collateral` (block 124,811,968): five collateral
+  positions with open borrows. If Lista's oracle priced per share while the market counts raw tokens, the gaps would
+  total about $287 (NVDAB 0.5135 + 0.1868, MSFTB 0.1709, GOOGLB 0.0956 + 0.0239 share-eq). Lista's oracle basis was
+  not measured. With multipliers under 0.5% from 1.0, a price check could not separate the two cases yet.
 
 ## Verified against the reference contract
 

@@ -6,7 +6,7 @@ import type { Chain } from './chain.js';
 import { scanCollateral } from './collateral.js';
 import type { FeedIndexer } from './events.js';
 import { tokenRef } from './events.js';
-import { buildLedger } from './ledger.js';
+import { buildLedger, ondoHistoryNotices } from './ledger.js';
 import type { ListaMarketSource } from './lista.js';
 import { buildPortfolio, toPrice } from './portfolio.js';
 import type { MarkQuote, PoolRef, PriceSource } from './prices.js';
@@ -164,6 +164,16 @@ export async function scanAddress(
       rawAt: ctx.rawAt,
     });
     const notices: string[] = [];
+    const heldOndo = [...probes.values()]
+      .filter((p) => p.token.model === 'ondo' && (p.raw > 0n || exposure.has(p.token.address)))
+      .map((p) => ({ symbol: p.token.symbol, address: p.token.address, mult: p.mult }));
+    if (heldOndo.length && snap.scannedFrom !== undefined) {
+      const start = await chain
+        .getBlock(snap.scannedFrom)
+        .then((b) => new Date(b.timestamp * 1000).toISOString().slice(0, 10))
+        .catch(() => `block ${snap.scannedFrom}`);
+      notices.push(...ondoHistoryNotices(rows, heldOndo, `the index start (${start})`));
+    }
     if (ctx.feed.ondoUnresolved) {
       notices.push(
         `${ctx.feed.ondoUnresolved} Ondo sValue update(s) could not be read: old and new values need historical (archive) state from the RPC endpoint.`,
