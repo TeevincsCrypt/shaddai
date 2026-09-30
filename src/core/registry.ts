@@ -128,6 +128,9 @@ export const LISTA_LISTED_SYMBOLS = new Set([
   'QQQB',
 ]);
 
+/** PancakeSwap V3 QuoterV2 on BSC, from pancakeswap/pancake-v3-contracts deployments/bscMainnet.json (commit 9868479). */
+export const PANCAKE_V3_QUOTER: Address = getAddress('0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997');
+
 export const MULTICALL3: Address = getAddress('0xcA11bde05977b3631167028862bE2a173976CA11');
 
 export const BSC_CHAIN_ID = 56;

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { getAddress, parseUnits } from 'viem';
-import { BUY_COPY, prepareBuy, quoteText, quoteWithFallback } from '../src/core/buy.js';
+import { getAbiItem, getAddress, parseUnits, toFunctionSelector } from 'viem';
+import { v3QuoterAbi } from '../src/core/abi.js';
+import type { Chain } from '../src/core/chain.js';
+import { StaticPriceSource } from '../src/core/prices.js';
+import { PANCAKE_V3_QUOTER } from '../src/core/registry.js';
+import { prepareBuy, quoteText, quoteWithFallback } from '../src/core/buy.js';
 import { OnchainQuoteApi } from '../src/core/onchain-quote.js';
 import { TradeApiError } from '../src/core/trade-api.js';
 import { DEMO_ADDRESS, DEMO_USDT } from '../src/fixtures/demo.js';
@@ -33,14 +37,12 @@ describe('on-chain quote fallback', () => {
     expect(r!.executionMode).toBe('QUOTE ONLY');
     expect(r!.priceImpactPercent!).toBeGreaterThan(0);
     expect(r!.priceImpactPercent!).toBeLessThan(0.05);
-    // A pool DexScreener lists but the chain does not answer for yields no route, not a guess.
-    expect(
-      await api.quote({
-        from: DEMO_USDT,
-        to: getAddress('0x02Fca66C1D1aFB4E2A7884261eB00F63598a7436'),
-        amount: u('1'),
-      }),
-    ).toEqual([]);
+    // A pool DexScreener lists but the chain does not answer is not guessed at; the refusal names what was listed.
+    await expect(
+      api.quote({ from: DEMO_USDT, to: getAddress('0x02Fca66C1D1aFB4E2A7884261eB00F63598a7436'), amount: u('1') }),
+    ).rejects.toThrow(
+      'No PancakeSwap V2 or V3 pool prices this token against the pay-in token. Pools DexScreener lists for it: pancakeswap v2 NVDAB/USDT.',
+    );
   });
 
   it('quotes from pools when Buy has no key, and cannot trade', async () => {
@@ -53,7 +55,7 @@ describe('on-chain quote fallback', () => {
     expect(b).toMatchObject({ status: 'ok', referenceSource: 'dex-mark', factorSource: 'uiMultiplier' });
     expect(b!.route!.vendor).toMatch(/^PancakeSwap V2 pool 0xde30/i);
     expect(Number(b!.shareEqOut)).toBeCloseTo(Number(b!.rawOut) * 1.000604, 12);
-    expect(on!.reasons).toEqual([BUY_COPY.noPool]);
+    expect(on!.reasons[0]).toMatch(/^No PancakeSwap V2 or V3 pool .* lists for it: pancakeswap v2 AAPLon\/USDT\.$/);
     expect(q.best).toBe(AAPLB);
 
     ctx.buy = ctx.buyFallback;
@@ -78,6 +80,46 @@ describe('on-chain quote fallback', () => {
     expect(ok.fallback).toBeUndefined();
   });
 
+  it('prices a V3 pool through QuoterV2 with the pool fee tier', async () => {
+    const pool = getAddress('0x00000000000000000000000000000000000c0003');
+    const seen: { to: string; fn: string; args?: readonly unknown[] }[] = [];
+    const chain = {
+      readMany: async (calls: { to: string; functionName: string; args?: readonly unknown[] }[]) =>
+        calls.map((c) => {
+          seen.push({ to: c.to, fn: c.functionName, args: c.args });
+          if (c.to === pool && c.functionName === 'token0') return { ok: true, value: DEMO_USDT };
+          if (c.to === pool && c.functionName === 'token1') return { ok: true, value: AAPLB };
+          if (c.to === pool && c.functionName === 'fee') return { ok: true, value: 2500 };
+          if (c.to === PANCAKE_V3_QUOTER) return { ok: true, value: [u('0.08'), 1n, 1, 90000n] };
+          return { ok: false, error: 'revert' };
+        }),
+    } as unknown as Chain;
+    const prices = new StaticPriceSource(
+      new Map(),
+      new Map([
+        [AAPLB, [{ pair: pool, dex: 'pancakeswap', labels: ['v3'], token0Symbol: 'AAPLB', token1Symbol: 'USDT' }]],
+      ]),
+    );
+    const [r] = await new OnchainQuoteApi(chain, prices).quote({ from: DEMO_USDT, to: AAPLB, amount: u('20') });
+    expect(r).toMatchObject({
+      toAmount: u('0.08'),
+      priceImpactPercent: null,
+      vendorName: expect.stringContaining('(fee 0.25%)'),
+    });
+    const q = seen.find((x) => x.fn === 'quoteExactInputSingle')!;
+    expect(q.args![0]).toEqual({
+      tokenIn: DEMO_USDT,
+      tokenOut: AAPLB,
+      amountIn: u('20'),
+      fee: 2500,
+      sqrtPriceLimitX96: 0n,
+    });
+    // Same function as PancakeSwap's QuoterV2 (and Uniswap's): quoteExactInputSingle((address,address,uint256,uint24,uint160)).
+    expect(toFunctionSelector(getAbiItem({ abi: v3QuoterAbi, name: 'quoteExactInputSingle' }))).toBe(
+      toFunctionSelector('quoteExactInputSingle((address,address,uint256,uint24,uint160))'),
+    );
+  });
+
   it('applies the 1% rule to pool quotes too', async () => {
     const q = await quoteWithFallback(ctxWithFallback(false, 10_000), { ticker: 'AAPLB', usd: 6000 });
     expect(q.wrappers[0]!.status).toBe('refused');
@@ -92,7 +134,7 @@ describe('on-chain quote fallback', () => {
       trading: boolean;
       api: string;
     };
-    expect(cfg).toMatchObject({ enabled: true, trading: false, api: 'On-chain pools (PancakeSwap V2 reserves)' });
+    expect(cfg).toMatchObject({ enabled: true, trading: false, api: 'On-chain pools (PancakeSwap V2/V3)' });
     const q = await app.request('/api/buy/quote?ticker=AAPL&usd=10');
     expect(((await q.json()) as { quoteOnly: boolean }).quoteOnly).toBe(true);
   });

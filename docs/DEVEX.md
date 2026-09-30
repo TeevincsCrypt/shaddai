@@ -260,6 +260,11 @@ Dividend reinvestments (all took effect at 00:00 UTC):
   plausible 1e18-scaled value for all nine Ondo tokens, which also confirms the function name the audit only implied.
 - The difference between those two figures is the point of the ledger: today's raw-to-share gap (1.16) is not the
   dividend this holder earned (0.518), because tokens deposited after the event already carried the multiplier.
+- Second run (30 Sep 2026, index from 1 May 2026): 25 events, 15 from bStock contracts (the same 15 as the first run)
+  and 10 Ondo sValue changes read from the oracle. The first Ondo change is at block 97,564,550, about 4.9M blocks
+  before the first bStock (102,441,229). An index started at the first bStock would have missed Ondo history.
+- DexScreener marks exist for NVDAB and NVDAon, but neither pairs with USDT in a PancakeSwap V2 pool, so reserve-based
+  pricing had nothing to price for NVDA.
 
 ## Verified against the reference contract
 
