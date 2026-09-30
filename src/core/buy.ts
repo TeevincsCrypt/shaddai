@@ -252,11 +252,11 @@ export async function quoteShareTrueBuy(ctx: ShaddaiContext, input: QuoteInput):
   const [probes, rwa, marks] = await Promise.all([
     probeTokens(ctx.chain, wrappers, null, head, hdr.timestamp, { ondoOracle: ctx.ondoOracle }),
     cfg.api.quoteOnly
-      ? { ok: false as const, error: 'on-chain mode' }
+      ? { ok: false as const, error: 'on-chain mode', compliance: false }
       : cfg.api
           .rwaTokens()
           .then((list) => ({ ok: true as const, list }))
-          .catch((e: Error) => ({ ok: false as const, error: e.message })),
+          .catch((e: Error) => ({ ok: false as const, error: e.message, compliance: isCompliance(e) })),
     ctx.prices.quote(wrappers.map((w) => w.address)).catch(() => null),
   ]);
 
@@ -380,6 +380,13 @@ export async function quoteShareTrueBuy(ctx: ShaddaiContext, input: QuoteInput):
 
     // Full ticket plus a probe at a tenth of it (at least one pay-in unit) to measure depth.
     const unit = 10n ** BigInt(payIn.decimals);
+    // A compliance refusal on the RWA list applies to quotes too; asking again only spends rate limit.
+    if (!rwa.ok && rwa.compliance) {
+      complianceHits++;
+      refuse(BUY_COPY.compliance);
+      return q;
+    }
+
     let probeAmt = amount / 10n;
     if (probeAmt < unit) probeAmt = amount > unit ? unit : 0n;
     const ask = (amt: bigint) =>
