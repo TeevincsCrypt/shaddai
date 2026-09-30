@@ -191,5 +191,6 @@ export interface FeedResult {
   events: MultiplierEvent[];
   scannedFrom?: string;
   scannedTo?: string;
+  tokens: TokenRef[];
   units: Record<string, UnitModel>;
 }

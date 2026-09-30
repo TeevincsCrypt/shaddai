@@ -242,6 +242,7 @@ export async function getFeed(ctx: ShaddaiContext, budgetMs = 5_000): Promise<Fe
     events: snap.scannedTo === undefined ? [] : ctx.feed.timeline(head.timestamp),
     scannedFrom: snap.scannedFrom?.toString(),
     scannedTo: snap.scannedTo?.toString(),
+    tokens: tokens.map(tokenRef),
     units: unitsRecord(probes),
   };
 }

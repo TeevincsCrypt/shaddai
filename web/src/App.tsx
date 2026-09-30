@@ -6,6 +6,7 @@ import { Explainer } from './components/Explainer';
 import { Footer } from './components/Footer';
 import { Landing } from './components/Landing';
 import { Ledger } from './components/Ledger';
+import { LogoMark } from './components/Logo';
 import { Lookup } from './components/Lookup';
 import { Portfolio } from './components/Portfolio';
 import { StatementHead } from './components/StatementHead';
@@ -104,6 +105,12 @@ export function App() {
     setTab('portfolio');
   };
 
+  /** Feature cards: statement tabs open on the demo; Buy and units stand alone. */
+  const openFeature = (t: Tab) => {
+    go(t);
+    if (!STANDALONE.includes(t) && !result) void scan('demo');
+  };
+
   const alerts = result?.collateral.positions.filter((p) => p.severity === 'alert').length ?? 0;
   const standalone = STANDALONE.includes(tab);
   const showLanding = !result && !standalone;
@@ -120,7 +127,8 @@ export function App() {
               reset();
             }}
           >
-            Shaddai <span className="x">×</span>
+            <LogoMark size={28} />
+            Shaddai
           </a>
           <nav className="nav" aria-label="Sections">
             {TABS.map((t) => (
@@ -135,13 +143,24 @@ export function App() {
               </button>
             ))}
           </nav>
-          <span className="spacer" />
-          {result?.mode === 'demo' || config?.mode === 'demo' ? (
-            <span className="badge demo">Demo data</span>
-          ) : config ? (
-            <span className="badge live">BSC mainnet</span>
-          ) : null}
-          <ThemeToggle />
+          <div className="top-actions">
+            {result?.mode === 'demo' || config?.mode === 'demo' ? (
+              <span className="badge demo">Demo data</span>
+            ) : config ? (
+              <span className="badge live">BSC mainnet</span>
+            ) : null}
+            <ThemeToggle />
+            {!result ? (
+              <button
+                type="button"
+                className="btn primary hide-sm"
+                onClick={() => openFeature('portfolio')}
+                disabled={pendingAddress !== null}
+              >
+                Open the demo
+              </button>
+            ) : null}
+          </div>
         </div>
       </header>
 
@@ -157,7 +176,9 @@ export function App() {
       {result && !standalone ? <Explainer /> : null}
 
       <main>
-        {showLanding ? <Landing config={config} onScan={scan} busy={pendingAddress !== null} error={error} /> : null}
+        {showLanding ? (
+          <Landing config={config} onScan={scan} onFeature={openFeature} busy={pendingAddress !== null} error={error} />
+        ) : null}
 
         {result && !standalone ? (
           <>
@@ -204,9 +225,9 @@ export function App() {
   );
 }
 
-/** Dark desk by default; the choice is remembered per browser. */
+/** Light by default; the choice is remembered per browser. */
 function ThemeToggle() {
-  const [theme, setTheme] = useState(() => document.documentElement.dataset.theme ?? 'dark');
+  const [theme, setTheme] = useState(() => document.documentElement.dataset.theme ?? 'light');
   const flip = () => {
     const next = theme === 'dark' ? 'light' : 'dark';
     document.documentElement.dataset.theme = next;
@@ -223,8 +244,28 @@ function ThemeToggle() {
       className="theme-toggle"
       onClick={flip}
       aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+      title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
     >
-      {theme === 'dark' ? 'Light' : 'Dark'}
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        {theme === 'dark' ? (
+          <>
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+          </>
+        ) : (
+          <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+        )}
+      </svg>
     </button>
   );
 }
