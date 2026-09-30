@@ -268,7 +268,7 @@ export function Buy({ demo: demoProp, demoAddress }: { demo: boolean; demoAddres
               <h3>On-chain pools instead · comparison only</h3>
               <p className="small muted">
                 The Binance Web3 API refused this server, so here is the same share-true comparison priced against
-                PancakeSwap V2 pool reserves read on BSC. Nothing can be bought through this.
+                PancakeSwap pools read on BSC. Nothing can be bought through this.
               </p>
               <QuoteTable quote={quote.fallback} chosen={null} onChoose={() => undefined} />
             </div>

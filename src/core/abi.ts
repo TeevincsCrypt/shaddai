@@ -107,6 +107,17 @@ export const v2PairAbi = parseAbi([
   'function balanceOf(address) view returns (uint256)',
 ]);
 
+/** PancakeSwap V3 pool getters and QuoterV2 (pancakeswap/pancake-v3-contracts, v3-core and v3-periphery). */
+export const v3PoolAbi = parseAbi([
+  'function token0() view returns (address)',
+  'function token1() view returns (address)',
+  'function fee() view returns (uint24)',
+]);
+export const v3QuoterAbi = parseAbi([
+  'struct QuoteExactInputSingleParams { address tokenIn; address tokenOut; uint256 amountIn; uint24 fee; uint160 sqrtPriceLimitX96; }',
+  'function quoteExactInputSingle(QuoteExactInputSingleParams params) returns (uint256 amountOut, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate)',
+]);
+
 export const multicall3Abi = parseAbi([
   'struct Call3 { address target; bool allowFailure; bytes callData; }',
   'struct Result { bool success; bytes returnData; }',
