@@ -1,3 +1,5 @@
+import { LogoMark } from './Logo';
+
 const DEFAULT_LINKS: Record<string, string> = {
   bep677: 'https://github.com/bnb-chain/BEPs/blob/master/BEPs/BEP-677.md',
   erc8056: 'https://eips.ethereum.org/EIPS/eip-8056',
@@ -25,6 +27,13 @@ export function Footer({ links }: { links?: Record<string, string> }) {
   return (
     <footer className="footer">
       <div className="wrap">
+        <div className="brand">
+          <LogoMark size={24} />
+          Shaddai
+          <span className="muted small" style={{ fontWeight: 400 }}>
+            Share-true accounting for tokenized stocks on BSC
+          </span>
+        </div>
         <p className="legal">
           bStocks, Ondo and xStocks tokens are not the listed share and carry no voting rights. Estimates assume
           published multipliers and typical withholding. Not tax, legal or investment advice. US persons are excluded

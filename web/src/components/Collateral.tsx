@@ -123,7 +123,7 @@ export function Collateral({ result }: { result: ScanResult }) {
       {listings.length ? (
         <div style={{ display: 'grid', gap: 4 }}>
           <h3 style={{ fontSize: 'var(--step-1)', marginTop: 12 }}>If you post what is in the wallet</h3>
-          <div>
+          <div className="listing-card">
             {listings.map((l) => (
               <div className="listing" key={`${l.protocol}-${l.token.address}`}>
                 <span className="chip info">{l.protocol}</span>

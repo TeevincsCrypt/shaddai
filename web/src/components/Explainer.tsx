@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { LogoMark } from './Logo';
 
 const KEY = 'shaddai.explainer.dismissed';
 
@@ -25,16 +26,21 @@ export function Explainer() {
   return (
     <aside className="explainer" aria-label="How to read this statement">
       <div className="wrap">
-        <div>
-          <p className="big">Your wallet counts tokens. Shaddai counts shares.</p>
-          <p>
-            After a dividend the contract keeps the same raw number and raises a multiplier. The extra amount is the
-            reinvested dividend after withholding. It is not a glitch and it is not cash you can spend.
-          </p>
+        <div className="explainer-card">
+          <span className="app-tile" aria-hidden="true">
+            <LogoMark size={28} />
+          </span>
+          <div>
+            <p className="big">Your wallet counts tokens. Shaddai counts shares.</p>
+            <p>
+              After a dividend the contract keeps the same raw number and raises a multiplier. The extra amount is the
+              reinvested dividend after withholding. It is not a glitch and it is not cash you can spend.
+            </p>
+          </div>
+          <button type="button" className="btn" onClick={close}>
+            Got it
+          </button>
         </div>
-        <button type="button" className="btn" onClick={close}>
-          Got it
-        </button>
       </div>
     </aside>
   );

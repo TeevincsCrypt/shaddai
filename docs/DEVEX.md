@@ -209,6 +209,8 @@ connectors' code and generated types. Nothing in this section has been checked a
   tokens. It covers market data too, and is tied to where the server runs or to the API key's account.
 - Still to separate: location versus account. The same check run from another location (a different function region,
   or a local run) tells them apart.
+- Organizers' answer: run from the Asia-Singapore region. `vercel.json` now sets `"regions": ["sin1"]`. The
+  `/api/buy/diagnose` result from `sin1` is not recorded yet.
 
 ## Measured on mainnet
 
