@@ -445,12 +445,12 @@ export async function quoteShareTrueBuy(ctx: ShaddaiContext, input: QuoteInput):
     if (q.impactPct > cfg.maxImpactPct) {
       refuse(`Thin book: a $${usd} ticket moves the price ${q.impactPct.toFixed(2)}% (limit ${cfg.maxImpactPct}%).`);
     }
-    if (route.executionMode !== 'RFQ' && !cfg.api.quoteOnly)
-      q.notes.push(`Route type ${route.executionMode}, not RFQ.`);
     return q;
   };
 
-  const results = await Promise.all(wrappers.map(evaluate));
+  // One wrapper at a time: each asks for two quotes, and the API rate-limits bursts.
+  const results: WrapperQuote[] = [];
+  for (const w of wrappers) results.push(await evaluate(w));
   const ok = results.filter((x) => x.status === 'ok' && x.shareEqOut !== null);
   const argmax = (f: (x: WrapperQuote) => number) =>
     ok.reduce<WrapperQuote | null>((b, x) => (!b || f(x) > f(b) ? x : b), null)?.token.address ?? null;

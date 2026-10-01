@@ -209,8 +209,32 @@ connectors' code and generated types. Nothing in this section has been checked a
   tokens. It covers market data too, and is tied to where the server runs or to the API key's account.
 - Still to separate: location versus account. The same check run from another location (a different function region,
   or a local run) tells them apart.
-- Organizers' answer: run from the Asia-Singapore region. `vercel.json` now sets `"regions": ["sin1"]`. The
-  `/api/buy/diagnose` result from `sin1` is not recorded yet.
+- Organizers' answer: run from the Asia-Singapore region. `vercel.json` now sets `"regions": ["sin1"]`.
+- `/api/buy/diagnose` from `sin1`, same API key: every call succeeded. RWA token list: 488 tokens. USDT token search:
+  9 hits. Quote 1 USDT → USDC: 2 routes, best LiquidMesh. Quote 5 USDT → NVDAB with the quote wallet: 1 route, SWAP.
+  So the `iad1` refusals were about where the server runs, not about the account.
+
+## 19. First live share-true quotes (Binance Web3 API, `sin1`)
+
+- Equity tokens came back as `executionMode: "SWAP"` from vendor LiquidMesh, approve target
+  `0xB44446b0c8E56988c34f7Ff73Ae904982b5FdDA5`, for NVDAon, GOOGLB and GOOGLon. The docs say equity / RWA tokens always
+  return `RFQ`. Shaddai keeps both paths.
+- `priceImpactPercent` came back on these routes (0.0001% to 0.011% for $25).
+- $25 of USDT, quoted with the server quote wallet:
+
+  | Wrapper | Factor (on chain) | Raw tokens out | Share-equivalents | USD per share |
+  | ------- | ----------------- | -------------- | ----------------- | ------------- |
+  | GOOGLB  | 1.000478 (uiMult) | 0.071036       | 0.071070          | 351.76        |
+  | GOOGLon | 1.002460 (sValue) | 0.070236       | 0.070409          | 355.07        |
+  | NVDAon  | 1.001715 (sValue) | 0.108337       | 0.108523          | 230.37        |
+
+  GOOGLB gave about 0.9% more shares than GOOGLon for the same $25.
+
+- NVDAB in the same moment: `HTTP 429 Rate limit exceeded`. Two tickers were quoted at once, each wrapper asking for
+  a full-size and a probe quote, so about eight quote calls landed together. Shaddai now quotes one wrapper at a time
+  and sends a 429 again after 0.8 s and 2 s (or the `Retry-After` value).
+- The RWA list reported Ondo wrappers as `marketStatus: "premarket"` with a `nextOpenTime`; bStocks wrappers had no
+  `marketStatus`. Both were `TRADING`.
 
 ## Measured on mainnet
 

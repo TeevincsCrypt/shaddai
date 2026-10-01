@@ -2,7 +2,8 @@
  * Fixture stand-in for the Binance Web3 API, for the demo and tests. Prices come
  * from the demo marks; depth is a straight line (price worsens by ticket ÷
  * liquidity), so small tickets pass the 1% rule and large ones on thin wrappers
- * do not. Every route is RFQ, as the real API returns for equity tokens.
+ * do not. Every route is RFQ (the signed-order path); the real API has also
+ * returned SWAP routes for equity tokens.
  */
 import { decodeFunctionData, encodeFunctionData, type Address, type Hex } from 'viem';
 import { approveAbi } from '../core/abi.js';
