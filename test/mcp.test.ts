@@ -30,6 +30,7 @@ describe('MCP tools (in-memory client)', () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual([
       'sharetrue_collateral',
+      'sharetrue_dividend',
       'sharetrue_explain',
       'sharetrue_ledger',
       'sharetrue_portfolio',
@@ -37,6 +38,24 @@ describe('MCP tools (in-memory client)', () => {
     ]);
     expect(tools.find((t) => t.name === 'sharetrue_portfolio')!.title).toBe('sharetrue.portfolio');
     expect(tools.every((t) => t.annotations?.readOnlyHint)).toBe(true);
+  });
+
+  it('dividend answers in one card, and says so when nothing touched the holder', async () => {
+    const hit = text(
+      (await client.callTool({
+        name: 'sharetrue_dividend',
+        arguments: { address: 'demo', ticker: 'AAPL' },
+      })) as TextResult,
+    );
+    expect(hit).toContain('DEMO FIXTURE');
+    expect(hit).toContain('AAPLB paid on 14 Aug 2026, block 70548000. Raw stayed 10.000000.');
+    const miss = text(
+      (await client.callTool({
+        name: 'sharetrue_dividend',
+        arguments: { address: 'demo', ticker: 'TSLA' },
+      })) as TextResult,
+    );
+    expect(miss).toContain('No multiplier change found for this holder.');
   });
 
   it('portfolio reports raw and share-equivalents, never raw as shares', async () => {

@@ -23,6 +23,7 @@ import { BinanceWeb3Api } from '../core/trade-api.js';
 import type { ShaddaiContext } from '../core/scan.js';
 import {
   buildDemoScenario,
+  DEMO_LISTA_MARKET_MSFTB,
   DEMO_LISTA_MARKET_NVDAB,
   DEMO_LISTA_MARKET_NVDAB_BORROW,
   DEMO_LISTA_MARKET_NVDAB_LEND,
@@ -60,7 +61,14 @@ export interface AppConfig {
   maxReplayLogs: number;
   /** Binance Web3 API credentials for Buy. Never logged or returned. */
   binance: { apiKey: string; apiSecret: string; basePath: string | null } | null;
-  buy: { maxUsd: number; maxImpactPct: number; slippagePct: string; quoteWallet: Address | null; usd1: Address | null };
+  buy: {
+    maxUsd: number;
+    maxImpactPct: number;
+    slippagePct: string;
+    quoteWallet: Address | null;
+    usd1: Address | null;
+    minLiquidityUsd: number;
+  };
 }
 
 const list = (v: string | undefined) =>
@@ -115,6 +123,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       slippagePct: env.SHADDAI_BUY_SLIPPAGE_PCT ?? '0.5',
       quoteWallet: optionalAddress(env.SHADDAI_QUOTE_WALLET, 'SHADDAI_QUOTE_WALLET'),
       usd1: optionalAddress(env.SHADDAI_USD1_ADDRESS, 'SHADDAI_USD1_ADDRESS'),
+      minLiquidityUsd: Number(env.SHADDAI_MIN_POOL_LIQUIDITY_USD ?? 25_000),
     },
   };
 }
@@ -246,6 +255,7 @@ export function demoContext(frozenAt?: number): ShaddaiContext {
         DEMO_LISTA_MARKET_NVDAB,
         DEMO_LISTA_MARKET_NVDAB_LEND,
         DEMO_LISTA_MARKET_NVDAB_BORROW,
+        DEMO_LISTA_MARKET_MSFTB,
       ]),
       extraMarketIds: [],
     },

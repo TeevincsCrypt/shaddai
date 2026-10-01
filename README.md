@@ -10,16 +10,46 @@ Paste a BSC address and Shaddai returns three things:
 2. **Corporate-action ledger.** Every multiplier change that touched those holdings: old → new multiplier, raw held at
    the block before activation, implied Δ share-equivalents, estimated USD. Exports to CSV.
 3. **Collateral warning.** If the tokens are supplied to Venus, posted on Lista, or sitting in an LP, a severity-graded
-   warning that the protocol counts raw ERC-20 units, not `balanceOfUI`.
+   warning that the protocol counts raw ERC-20 units, not `balanceOfUI`. When a multiplier change is scheduled, it
+   shows three numbers: raw units the protocol holds, share-equivalents today, share-equivalents after the flip.
+
+Plus, without an address:
+
+4. **Spread.** Every verified wrapper of a ticker priced per share-equivalent, after the multiplier: a raw gap can be a
+   dividend. See [Spread](#spread).
+5. **"Did I get the dividend?"** One ticker, one plain-English answer from the ledger, also an MCP tool. See
+   [Dividend answer](#dividend-answer).
 
 And one way to act on it:
 
-4. **Share-true Buy.** Size a spot buy in dollars of shares; every wrapper of the ticker is quoted and ranked by the
-   share-equivalents you would own, thin books are refused, and your own wallet approves and signs. See
-   [Buy](#buy).
+6. **Share-true Buy.** Size a spot buy in dollars of shares; every wrapper of the ticker is quoted and ranked by the
+   share-equivalents you would own, thin twins are refused, and your own wallet approves and signs. See [Buy](#buy).
 
-The first three tabs only read. Buy is off unless the server has a Binance Web3 API key, and even then Shaddai never
-holds funds or keys: the user's wallet signs.
+Every price, gap, buy size and collateral figure is in share-equivalents. A factor that was not read is shown as
+unread, never as 1.0. Everything except Buy only reads. Buy is off unless the server has a Binance Web3 API key, and
+even then Shaddai never holds funds or keys: the user's wallet signs.
+
+## Demo script
+
+About four minutes, on the deployed app or `npm run demo`. "Open the demo" loads the fixture address; live steps say
+so.
+
+1. **Portfolio.** NVDAB in the wallet, in Venus and lent on Lista: raw next to share-equivalents, the multiplier that
+   joins them, and the total.
+2. **Ledger.** Events with no Transfer: dividend reinvestments, the XMPLB split, an overwritten MSFTB schedule and the
+   pending one.
+3. **Dividend answer.** On the Ledger tab, "Did I get the dividend?" → AAPL: "AAPLB paid on 14 Aug 2026, block 70548000. Raw stayed 10.000000. Multiplier went 1.0000× → 1.000604×. You gained 0.006040 Apple-equivalents…". Then
+   TSLA: "No multiplier change found for this holder." The same answer comes from the MCP tool `sharetrue_dividend`.
+4. **Spread.** NVDA: NVDAB and NVDAon priced per share. The raw gap includes the dividend factor; the gap after the
+   multiplier does not. NVDAon's pool is thin, so NVDAB is the tightest liquid wrapper. Off US cash hours, every row is
+   badged "quote, not a mispricing" with the next open. On the live app the reference is Binance's.
+5. **Thin-wrapper buy.** Buy → NVDA, $50: NVDAon is refused ("NVDAon book is $14k, under the $25k floor."), NVDAB is
+   quoted in share-equivalents and preselected. On the live app, a few dollars from a connected wallet: one approve,
+   one swap or signed order, both dry-run first.
+6. **Collateral.** MSFTB on Lista with a scheduled multiplier: protocol holds 3 raw, 3.000000 share-eq today, 3.006060
+   after the flip, and what a share-priced oracle would do to the collateral value. NVDAB in Venus says "No scheduled
+   multiplier."
+7. **CSV.** Ledger → Download CSV.
 
 ## Run it
 
@@ -137,13 +167,14 @@ Apply for a key on the [Binance Web3 API portal](https://web3.binance.com/en/dev
 Binance account or a wallet, bind a phone or email). Both values stay on the server; requests are signed there with
 HMAC-SHA256. Related settings:
 
-| Variable                     | Default      | Notes                                                                                        |
-| ---------------------------- | ------------ | -------------------------------------------------------------------------------------------- |
-| `SHADDAI_BUY_MAX_USD`        | `25`         | Largest ticket the server will quote or prepare. Keep it small for live runs.                |
-| `SHADDAI_BUY_MAX_IMPACT_PCT` | `1`          | Hard refusal above this price impact.                                                        |
-| `SHADDAI_BUY_SLIPPAGE_PCT`   | `0.5`        | Slippage passed to `/swap`.                                                                  |
-| `SHADDAI_QUOTE_WALLET`       | none         | Address used for quotes before a wallet connects; RFQ quotes for equity tokens want one.     |
-| `SHADDAI_USD1_ADDRESS`       | token search | Pins USD1. Otherwise found through the Market API and accepted only if `symbol()` says USD1. |
+| Variable                         | Default      | Notes                                                                                        |
+| -------------------------------- | ------------ | -------------------------------------------------------------------------------------------- |
+| `SHADDAI_BUY_MAX_USD`            | `25`         | Largest ticket the server will quote or prepare. Keep it small for live runs.                |
+| `SHADDAI_BUY_MAX_IMPACT_PCT`     | `1`          | Hard refusal above this price impact.                                                        |
+| `SHADDAI_MIN_POOL_LIQUIDITY_USD` | `25000`      | Buy refuses a wrapper whose deepest USDT pool holds less; Spread marks it thin.              |
+| `SHADDAI_BUY_SLIPPAGE_PCT`       | `0.5`        | Slippage passed to `/swap`.                                                                  |
+| `SHADDAI_QUOTE_WALLET`           | none         | Address used for quotes before a wallet connects; RFQ quotes for equity tokens want one.     |
+| `SHADDAI_USD1_ADDRESS`           | token search | Pins USD1. Otherwise found through the Market API and accepted only if `symbol()` says USD1. |
 
 ### Tuning and local-only variables
 
@@ -240,27 +271,31 @@ contracts, not people's wallets.
 `src/fixtures/fake-chain.ts` is a JSON-RPC emulator that answers `eth_call` (including Multicall3), `eth_getLogs` and
 block headers from a scripted scenario. Its multiplier state machine mirrors `ERC8056BaseUpgradeable._setUIMultiplier`
 exactly. The demo scenario (`src/fixtures/demo.ts`) holds NVDAB (wallet + Venus), AAPLB (wallet + V2 LP), MSFTB with a
-scheduled-then-overwritten dividend, TSLAB at 1.0, NVDAon via sValue, GOOGLB dust, and **XMPLB, a fictional "Example
-Corp"** that did a 2-for-1 split and is posted on Lista, which fires the alert. Every figure is illustrative. The UI and
-the CSV label it as demo data.
+scheduled-then-overwritten dividend and 3 MSFTB posted on Lista while the next change is pending, TSLAB at 1.0, NVDAon
+via sValue, GOOGLB dust, and **XMPLB, a fictional "Example Corp"** that did a 2-for-1 split and is posted on Lista,
+which fires the alert. NVDA's two wrappers have pools the fixture answers: NVDAB deep, NVDAon a $14k pool sitting 0.3%
+above the token price, the thin twin for Spread and Buy. Every figure is illustrative. The UI and the CSV label it as
+demo data.
 
 ## API
 
-| Route                          | Returns                                                                                                                                   |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/scan?address=0x…`    | Portfolio, ledger, collateral, checks. `address=demo` for the fixture.                                                                    |
-| `GET /api/ledger.csv?address=` | `date, block, issuer, symbol, contract, raw_at_event, old_mult, new_mult, delta_share_eq, est_usd, note`                                  |
-| `GET /api/feed`                | Global multiplier-event feed for the registry (`?demo=1` for the fixture).                                                                |
-| `GET /api/status`              | Config facts (custom RPC set, snapshot shipped; never URLs or keys), index state, RPC endpoint health, request counters.                  |
-| `GET /api/config`              | Mode, demo address, live example addresses.                                                                                               |
-| `POST /api/mcp`                | MCP over Streamable HTTP (stateless, JSON replies). See [MCP tools](#mcp-tools).                                                          |
-| `GET /api/preview?address=`    | Pre-action collateral preview: flips, oracle gaps, market hours, Binance DeFi cross-check. See [Pre-action preview](#pre-action-preview). |
-| `GET /api/buy/config`          | Whether Buy is on, limits, tickers and their wrappers.                                                                                    |
-| `GET /api/buy/diagnose`        | Server region and which Binance Web3 API calls succeed or are refused (for code 40304).                                                   |
-| `GET /api/buy/quote`           | `ticker`, `usd`, `payIn` (`USDT`/`USD1`), optional `wallet`. Share-true comparison; never trades.                                         |
-| `POST /api/buy/prepare`        | `{token, usd, payIn, wallet}` → the next step: checked approve plus dry run, or the EIP-712 order with its checks.                        |
-| `POST /api/buy/submit`         | `{requestId, signature, vendor, quoteId, signingScheme}` → forwards the signed order.                                                     |
-| `GET /api/buy/order/:id`       | Order status until `FILLED`, `FAILED`, `EXPIRED` or `CANCELLED`.                                                                          |
+| Route                                | Returns                                                                                                                                   |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/scan?address=0x…`          | Portfolio, ledger, collateral, checks. `address=demo` for the fixture.                                                                    |
+| `GET /api/ledger.csv?address=`       | `date, block, issuer, symbol, contract, raw_at_event, old_mult, new_mult, delta_share_eq, est_usd, note`                                  |
+| `GET /api/feed`                      | Global multiplier-event feed for the registry (`?demo=1` for the fixture).                                                                |
+| `GET /api/spread?ticker=NVDA`        | Share-normalized wrapper spread. Without `ticker`: the list of tickers. See [Spread](#spread).                                            |
+| `GET /api/dividend?address=&ticker=` | "Did I get the dividend?" card and JSON. See [Dividend answer](#dividend-answer).                                                         |
+| `GET /api/status`                    | Config facts (custom RPC set, snapshot shipped; never URLs or keys), index state, RPC endpoint health, request counters.                  |
+| `GET /api/config`                    | Mode, demo address, live example addresses.                                                                                               |
+| `POST /api/mcp`                      | MCP over Streamable HTTP (stateless, JSON replies). See [MCP tools](#mcp-tools).                                                          |
+| `GET /api/preview?address=`          | Pre-action collateral preview: flips, oracle gaps, market hours, Binance DeFi cross-check. See [Pre-action preview](#pre-action-preview). |
+| `GET /api/buy/config`                | Whether Buy is on, limits, tickers and their wrappers.                                                                                    |
+| `GET /api/buy/diagnose`              | Server region and which Binance Web3 API calls succeed or are refused (for code 40304).                                                   |
+| `GET /api/buy/quote`                 | `ticker`, `usd`, `payIn` (`USDT`/`USD1`), optional `wallet`. Share-true comparison; never trades.                                         |
+| `POST /api/buy/prepare`              | `{token, usd, payIn, wallet}` → the next step: checked approve plus dry run, or the EIP-712 order with its checks.                        |
+| `POST /api/buy/submit`               | `{requestId, signature, vendor, quoteId, signingScheme}` → forwards the signed order.                                                     |
+| `GET /api/buy/order/:id`             | Order status until `FILLED`, `FAILED`, `EXPIRED` or `CANCELLED`.                                                                          |
 
 ## Buy
 
@@ -272,6 +307,9 @@ target the ticket fills after costs.
 
 A wrapper is **refused**, not quoted, when:
 
+- its highest-liquidity USDT pool holds under $25,000 (`SHADDAI_MIN_POOL_LIQUIDITY_USD`), or that pool's 1% depth does
+  not cover the ticket ("NVDAon book is $14k, under the $25k floor." / "NVDAon 1% depth is $70.88; ticket needs $100 of
+  depth."). The figures are the same as on the Spread tab, and the refused twins stay on screen with their reasons;
 - its factor was not read (Ondo: "Ondo total-return factor not read — do not treat 1 token as 1 share"; xStocks:
   "Display factor not on this token — do not invent it");
 - the RWA Data API reports a halt (`ASSET_PAUSED` for a corporate action, market paused or in maintenance), or Ondo's
@@ -310,6 +348,43 @@ to you or your users.
 Spot only, BSC only. Live buys use small amounts from a wallet the team funds; the server caps each ticket
 (`SHADDAI_BUY_MAX_USD`). The demo runs the whole flow on a fixture API with signing disabled.
 
+## Spread
+
+The Spread tab (and `GET /api/spread?ticker=NVDA`) compares every verified wrapper of a ticker per share-equivalent.
+Tickers start with NVDA, TSLA, AAPL, GOOGL, SPCX, CRCL, AMD, MU, QQQ and SPY; only registry contracts appear. xStocks
+has no verified BSC contract in the registry, so it is listed as missing rather than guessed. For each wrapper:
+
+- **Raw price** from its highest-liquidity USDT pool on BSC. PancakeSwap V2 pools are read from reserves, V3 pools from
+  `slot0`. Anything else, or a pool that does not answer, falls back to DexScreener's price and says so.
+- **Multiplier**: `uiMultiplier()` for bStocks, `sValue` from Ondo's oracle. Unread means no share-eq price and no gap.
+- **Share-eq price** = raw price × 1e18 / multiplier. The comparison happens only after this.
+- **Reference**: the RWA Data API's `referencePrice` when a key is set. Binance documents it as a per-share price derived
+  from the on-chain token price, not an exchange quote or last close, and the panel says so. The RWA `tokenPrice` is
+  converted the same way and shown under the row.
+- **Gap** = (share-eq price − reference) / reference. The raw gap is shown small underneath, to make the point.
+- **Pool liquidity** (DexScreener) and **1% depth**: the USDT a buy can spend before its average price is 1% worse than
+  a tiny buy's. V2: from reserves in closed form. V3: PancakeSwap QuoterV2 at doubling sizes, then refined.
+- **Market**: if Binance says the US cash market is not in regular hours, or by the clock it is a weekend or outside
+  09:30–16:00 New York, the row is badged "Weekend quote, not a mispricing" (or "Off-hours…"), with the next open.
+  The clock does not know exchange holidays; Binance's status does.
+
+Rows sort by share-eq price. The tightest liquid wrapper (smallest gap, pool at least $25k) is highlighted, not the
+cheapest raw token. Nothing here trades.
+
+## Dividend answer
+
+"Did I get the dividend?" on the Ledger tab, `GET /api/dividend?address=…&ticker=AAPL`, and the MCP tool
+`sharetrue_dividend(address, ticker)` give the same answer from the same ledger:
+
+> AAPLB paid on 14 Aug 2026, block 70548000. Raw stayed 10.000000. Multiplier went 1.0000× → 1.000604×. You gained
+> 0.006040 Apple-equivalents, about $1.38 at today's price, after typical 30% US withholding. No Transfer event. A tax
+> export that only reads transfers will miss this.
+
+If no multiplier change for that ticker touched the address, it says "No multiplier change found for this holder." If
+the address held none at the event block, it says that too. If the balance at the block could not be read, it says it
+was not read instead of guessing. Splits get no USD figure. The withholding line is a note, not tax advice. Wrappers
+the address has since sold are still checked. No orders, no strategy, no loop.
+
 ## Pre-action preview
 
 At the top of the Collateral tab, before anyone posts, borrows or buys. For each protocol position, and each wallet
@@ -340,6 +415,7 @@ these tools return both units.
 | `sharetrue_portfolio`  | `sharetrue.portfolio`  | `address` (or `"demo"`)                             |
 | `sharetrue_ledger`     | `sharetrue.ledger`     | `address`, optional `ticker` or symbol              |
 | `sharetrue_collateral` | `sharetrue.collateral` | `address`                                           |
+| `sharetrue_dividend`   | `sharetrue.dividend`   | `address`, `ticker` (`AAPL`) or symbol (`AAPLB`)    |
 | `sharetrue_explain`    | `sharetrue.explain`    | `ticker` (`NVDA`) or symbol (`NVDAon`)              |
 | `sharetrue_quoteBuy`   | `sharetrue.quoteBuy`   | `ticker`, `usd` (quote only; needs Buy switched on) |
 
@@ -366,6 +442,9 @@ src/server/     Hono app, config, local entrypoint, deploy-time index snapshot
 src/mcp/        MCP tools (server.ts) and the stdio entrypoint
 src/core/buy.ts, trade-api.ts   share-true Buy and the signed Binance Web3 API client
 src/core/preview.ts             pre-action collateral preview
+src/core/books.ts, spread.ts    deepest USDT pool, 1% depth, share-normalized wrapper spread
+src/core/dividend.ts            "did I get the dividend?" answer
+src/core/market-hours.ts        US cash session clock (New York time, holidays not known)
 api/index.ts    Vercel function wrapping the same Hono app
 verify/evm/     the BEP-677 reference token on a local EVM (npm run verify:evm; own package.json, not deployed)
 web/            React statement UI (Vite)

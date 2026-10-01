@@ -35,6 +35,13 @@ const FEATURES: { tab: Tab; title: string; body: string; go: string; icon: React
     icon: <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />,
   },
   {
+    tab: 'spread',
+    title: 'Spread',
+    body: 'Every wrapper of a ticker priced per share, after the multiplier. A raw gap can be a dividend.',
+    go: 'Compare NVDA',
+    icon: <path d="M4 18h4V9H4zM10 18h4V5h-4zM16 18h4v-6h-4z" />,
+  },
+  {
     tab: 'buy',
     title: 'Buy',
     body: 'Compare wrappers by the shares you end up with, not the tokens. Your wallet signs.',

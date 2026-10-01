@@ -3,7 +3,7 @@ import type { RawAtOptions } from './balances.js';
 import type { BuyConfig } from './buy.js';
 import { TtlCache } from './cache.js';
 import type { Chain } from './chain.js';
-import { scanCollateral } from './collateral.js';
+import { flipPreview, scanCollateral } from './collateral.js';
 import type { FeedIndexer } from './events.js';
 import { tokenRef } from './events.js';
 import { buildLedger, ondoHistoryNotices } from './ledger.js';
@@ -124,6 +124,11 @@ export async function scanAddress(
   for (const p of probes.values()) {
     if (p.unit.symbolMismatch) warnings.push(`${p.token.symbol}: on-chain symbol() is "${p.unit.onChainSymbol}".`);
     if (!p.readable) warnings.push(`${p.token.symbol}: no ERC-20 answered at ${p.token.address}.`);
+  }
+
+  for (const pos of collateral.positions) {
+    const flip = flipPreview(pos, probes.get(pos.token.address), prices.get(pos.token.address));
+    if (flip) pos.flip = flip;
   }
 
   const portfolio = buildPortfolio(probes, prices, collateral.positions);

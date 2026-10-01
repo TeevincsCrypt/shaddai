@@ -1,4 +1,4 @@
-import { getAddress, type Address, type Hex } from 'viem';
+import { getAddress, parseUnits, type Address, type Hex } from 'viem';
 import { moolahAbi, v2PairAbi, venusComptrollerAbi, venusOracleAbi, vTokenAbi } from './abi.js';
 import type { BlockTag, Chain, ReadCall, ReadResult } from './chain.js';
 import { tokenRef } from './events.js';
@@ -6,8 +6,16 @@ import type { ListaMarketSource } from './lista.js';
 import type { MarkQuote, PoolRef } from './prices.js';
 import type { TokenProbe } from './probe.js';
 import { LINKS, LISTA_LISTED_SYMBOLS, type TokenInfo } from './registry.js';
-import type { CheckStatus, CollateralListing, CollateralPosition, OracleCheck, Severity } from './types.js';
-import { fixedToNumber, fmtAmount, fmtMultiplier, isNearOne, ONE, ratio, toUI } from './units.js';
+import type {
+  CheckStatus,
+  CollateralListing,
+  CollateralPosition,
+  FlipPreview,
+  OracleCheck,
+  Price,
+  Severity,
+} from './types.js';
+import { decimalString, fixedToNumber, fmtAmount, fmtMultiplier, isNearOne, ONE, ratio, toUI } from './units.js';
 
 export interface CollateralInput {
   chain: Chain;
@@ -42,7 +50,14 @@ export function severityFor(p: TokenProbe): { severity: Severity; reasons: strin
     const rank = { info: 0, watch: 1, alert: 2 } as const;
     if (rank[s] > rank[severity]) severity = s;
   };
-  const m = p.mult ?? ONE;
+  // An unread factor is not 1.0: the drift cannot be sized, so this is at least a watch.
+  if (p.mult === null) {
+    return {
+      severity: 'watch',
+      reasons: [`Share factor unread${p.unit.unreadReason ? ` (${p.unit.unreadReason})` : ''}; drift cannot be sized.`],
+    };
+  }
+  const m = p.mult;
   if (!isNearOne(m, 100)) {
     bump('alert');
     reasons.push(`Multiplier ${fmtMultiplier(m)} is more than 1% away from 1.0.`);
@@ -554,4 +569,78 @@ export async function scanCollateral(input: CollateralInput): Promise<Collateral
   const rank = { alert: 0, watch: 1, info: 2 } as const;
   out.positions.sort((a, b) => rank[a.severity] - rank[b.severity] || a.token.symbol.localeCompare(b.token.symbol));
   return out;
+}
+
+export const FLIP_COPY = {
+  none: 'No scheduled multiplier.',
+  noneOndo:
+    'No scheduled multiplier. Ondo applies small sValue updates without a schedule and pauses the oracle before a large one; a pause would show here.',
+  paused:
+    "Ondo's oracle has paused this asset, which it does ahead of a large sValue change. The next sValue is not published, so share-equivalents after the flip are unread. Confirm the market's oracle before you add borrow.",
+  confirm: "Confirm the market's oracle before you add borrow.",
+};
+
+/**
+ * Three numbers for a Venus or Lista supply position when its token has a
+ * scheduled multiplier: raw units the protocol holds, share-equivalents today,
+ * share-equivalents after the flip. Plus what a share-priced oracle on a market
+ * that reads raw balanceOf would do to the collateral value. Nothing scheduled
+ * means "no scheduled multiplier", never a made-up preview.
+ */
+export function flipPreview(
+  pos: CollateralPosition,
+  probe: TokenProbe | undefined,
+  price: Price | undefined,
+): FlipPreview | undefined {
+  if ((pos.protocol !== 'Venus' && pos.protocol !== 'Lista') || pos.side === 'borrow' || !probe) return undefined;
+  const dec = probe.unit.decimals;
+  const raw = parseUnits(pos.raw, dec);
+  const m = probe.mult;
+  const base: FlipPreview = {
+    status: 'none',
+    raw: pos.raw,
+    shareEqToday: m === null ? null : decimalString(toUI(raw, m), dec),
+    shareEqAfter: null,
+    multiplierToday: m === null ? null : decimalString(m, 18),
+    multiplierAfter: null,
+    effectiveAt: null,
+    kind: null,
+    splitLabel: null,
+    shareUsd: price?.shareUsd ?? null,
+    deltaUsd: null,
+    line: probe.unit.kind === 'ondo-svalue' ? FLIP_COPY.noneOndo : FLIP_COPY.none,
+  };
+  if (m === null) {
+    return {
+      ...base,
+      status: 'unread',
+      line: `Share factor unread${probe.unit.unreadReason ? ` (${probe.unit.unreadReason})` : ''}. No preview: Shaddai does not assume 1.0.`,
+    };
+  }
+  if (probe.unit.ondo?.paused) return { ...base, status: 'ondo-paused', line: FLIP_COPY.paused };
+  const next = probe.pendingMult;
+  const pending = probe.unit.pending;
+  if (next === null || !pending) return base;
+
+  const shareUsd = price?.shareUsd ?? null;
+  // A share-priced oracle re-prices each share by old/new at the flip; a market reading raw balanceOf keeps the raw count.
+  const deltaUsd =
+    shareUsd === null
+      ? null
+      : fixedToNumber(raw, dec) * shareUsd * (fixedToNumber(m, 18) / fixedToNumber(next, 18) - 1);
+  const money =
+    deltaUsd === null
+      ? 'an amount Shaddai cannot price (no DEX mark)'
+      : `${deltaUsd < 0 ? '−' : '+'}${Math.abs(deltaUsd).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })}`;
+  return {
+    ...base,
+    status: 'scheduled',
+    shareEqAfter: decimalString(toUI(raw, next), dec),
+    multiplierAfter: decimalString(next, 18),
+    effectiveAt: pending.effectiveAt,
+    kind: pending.kind,
+    splitLabel: pending.splitLabel ?? null,
+    deltaUsd,
+    line: `If the oracle is share-priced and the market reads raw balanceOf, collateral value moves by ${money}. ${FLIP_COPY.confirm}`,
+  };
 }

@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from 'react';
 import { api, type FeedResult, type ScanResult } from '../api';
 import { amount, amountTrim, bscscan, countdown, date, dateTime, KIND_LABEL, mult, pct, usd } from '../format';
 import type { LedgerRow, MultiplierEvent } from '../../../src/core/types';
+import { DividendCheck } from './DividendCheck';
 
 /** Notes that apply to every row are printed once under the table (the CSV keeps them per row). */
 const UNIVERSAL = new Set([
@@ -130,6 +131,8 @@ export function Ledger({ result }: { result: ScanResult }) {
           ) : null}
         </div>
       </div>
+
+      <DividendCheck result={result} />
 
       {scope === 'mine' ? (
         <>

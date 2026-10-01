@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, type PreviewResult, type ScanResult } from '../api';
-import { amount, countdown, mult, price } from '../format';
-import type { CollateralPosition } from '../../../src/core/types';
+import { amount, countdown, dateTime, mult, price } from '../format';
+import type { CollateralPosition, FlipPreview } from '../../../src/core/types';
 
 const SEV_LABEL = { info: 'Info', watch: 'Watch', alert: 'Alert' } as const;
 const SIDE_LABEL: Record<CollateralPosition['side'], string> = {
@@ -16,6 +16,41 @@ const BASIS_LABEL: Record<string, string> = {
   indistinguishable: 'cannot tell yet',
   unknown: 'unknown',
 };
+
+/** Before the next multiplier: raw the protocol holds, share-eq today, share-eq after. */
+function Flip({ f }: { f: FlipPreview }) {
+  if (f.status !== 'scheduled') {
+    return (
+      <div className="flip none">
+        <span className="eyebrow">Next multiplier</span>
+        <p>{f.line}</p>
+      </div>
+    );
+  }
+  return (
+    <div className="flip">
+      <span className="eyebrow">
+        Next multiplier: {mult(f.multiplierToday)} → {mult(f.multiplierAfter)} at {dateTime(f.effectiveAt!)} (
+        {countdown(f.effectiveAt!)}){f.splitLabel ? ` · ${f.splitLabel}` : ''}
+      </span>
+      <div className="flip-figs">
+        <div>
+          <div className="eyebrow">Protocol holds</div>
+          <div className="v raw-v">{amount(f.raw, 6)} raw</div>
+        </div>
+        <div>
+          <div className="eyebrow">Share-eq today</div>
+          <div className="v share-v">{amount(f.shareEqToday, 6)}</div>
+        </div>
+        <div>
+          <div className="eyebrow">Share-eq after the flip</div>
+          <div className="v share-v">{amount(f.shareEqAfter, 6)}</div>
+        </div>
+      </div>
+      <p>{f.line}</p>
+    </div>
+  );
+}
 
 function Warning({ p }: { p: CollateralPosition }) {
   return (
@@ -72,6 +107,7 @@ function Warning({ p }: { p: CollateralPosition }) {
         ) : null}
       </div>
       {p.oracle ? <p className="small muted">{p.oracle.note}</p> : null}
+      {p.flip ? <Flip f={p.flip} /> : null}
       {p.reasons.length ? (
         <ul className="notes" style={{ maxWidth: 'none' }}>
           {p.reasons.map((r) => (

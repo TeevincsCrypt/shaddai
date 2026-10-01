@@ -1,9 +1,23 @@
 import type { BuyQuote, PayInSymbol, PrepareResult, WrapperQuote } from '../../src/core/buy';
+import type { DividendAnswer } from '../../src/core/dividend';
 import type { PreviewResult } from '../../src/core/preview';
+import type { SpreadResult, SpreadRow } from '../../src/core/spread';
 import type { OrderStatus } from '../../src/core/trade-api';
 import type { FeedResult, ScanResult } from '../../src/core/types';
 
-export type { BuyQuote, FeedResult, OrderStatus, PayInSymbol, PrepareResult, PreviewResult, ScanResult, WrapperQuote };
+export type {
+  BuyQuote,
+  DividendAnswer,
+  FeedResult,
+  OrderStatus,
+  PayInSymbol,
+  PrepareResult,
+  PreviewResult,
+  ScanResult,
+  SpreadResult,
+  SpreadRow,
+  WrapperQuote,
+};
 
 export interface BuyConfigResponse {
   mode: 'live' | 'demo';
@@ -11,7 +25,7 @@ export interface BuyConfigResponse {
   /** False when only quotes are available (no trading API). */
   trading: boolean;
   api: string | null;
-  limits: { maxUsd: number; maxImpactPct: number; slippagePct: string } | null;
+  limits: { maxUsd: number; maxImpactPct: number; slippagePct: string; minLiquidityUsd: number } | null;
   payIn: PayInSymbol[];
   tickers: { ticker: string; name: string; wrappers: { symbol: string; issuer: string; address: string }[] }[];
 }
@@ -35,8 +49,16 @@ export const api = {
   scan: (address: string, poll = false) =>
     getJson<ScanResult>(`/api/scan?address=${encodeURIComponent(address)}${poll ? '&poll=1' : ''}`),
   feed: (demo: boolean) => getJson<FeedResult>(`/api/feed${demo ? '?demo=1' : ''}`),
+  spreadTickers: (demo: boolean) =>
+    getJson<{ tickers: string[]; mode: 'live' | 'demo' }>(`/api/spread${demo ? '?demo=1' : ''}`),
+  spread: (ticker: string, demo: boolean) =>
+    getJson<SpreadResult>(`/api/spread?ticker=${encodeURIComponent(ticker)}${demo ? '&demo=1' : ''}`),
   preview: (address: string, demo: boolean) =>
     getJson<PreviewResult>(`/api/preview?address=${encodeURIComponent(address)}${demo ? '&demo=1' : ''}`),
+  dividend: (address: string, ticker: string, demo: boolean) =>
+    getJson<DividendAnswer>(
+      `/api/dividend?address=${encodeURIComponent(address)}&ticker=${encodeURIComponent(ticker)}${demo ? '&demo=1' : ''}`,
+    ),
   csvUrl: (address: string) => `/api/ledger.csv?address=${encodeURIComponent(address)}`,
   buyConfig: (demo: boolean) => getJson<BuyConfigResponse>(`/api/buy/config${demo ? '?demo=1' : ''}`),
   buyQuote: (p: { ticker: string; usd: number; payIn: PayInSymbol; wallet?: string | null }, demo: boolean) => {

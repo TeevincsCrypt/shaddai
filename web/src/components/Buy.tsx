@@ -8,7 +8,7 @@ import {
   type PrepareResult,
   type WrapperQuote,
 } from '../api';
-import { amount, bscscan, mult, price, shortAddr } from '../format';
+import { amount, bscscan, mult, price, shortAddr, usdCompact } from '../format';
 import { connect, hasWallet, sendTx, signTypedData, waitForReceipt } from '../wallet';
 
 const TERMINAL = new Set(['FILLED', 'FAILED', 'EXPIRED', 'CANCELLED']);
@@ -170,8 +170,9 @@ export function Buy({ demo: demoProp, demoAddress }: { demo: boolean; demoAddres
           <p>
             Enter the dollars of stock you want. Shaddai quotes every wrapper of that ticker and ranks them by the
             share-equivalents you would own: raw tokens × the factor the contract (<code>uiMultiplier</code>) or Ondo’s
-            oracle (<code>sValue</code>) reports. A wrapper whose factor is not read is not quoted. A book that moves
-            more than {cfg.limits?.maxImpactPct ?? 1}% for your ticket is refused.
+            oracle (<code>sValue</code>) reports. A wrapper whose factor is not read is not quoted. A thin twin is
+            refused: under {usdCompact(cfg.limits?.minLiquidityUsd ?? 25_000)} in its deepest USDT pool, or a book your
+            ticket would move more than {cfg.limits?.maxImpactPct ?? 1}%.
           </p>
         </div>
         <div className="toolbar small">
@@ -356,7 +357,9 @@ function QuoteTable({
               <th className="num">
                 Per share-eq<span className="sub">vs reference</span>
               </th>
-              <th className="num">Impact</th>
+              <th className="num">
+                Impact<span className="sub">pool · 1% depth</span>
+              </th>
               <th>Verdict</th>
             </tr>
           </thead>
@@ -465,11 +468,19 @@ function WrapperRow({
           </span>
         ) : null}
       </td>
-      <td className="num" data-label="Impact">
+      <td className="num" data-label="Impact · book">
         {w.impactPct === null ? '—' : `${w.impactPct.toFixed(2)}%`}
         {w.impactSource ? (
           <span className="drift" style={{ color: 'var(--faint)' }}>
             {w.impactSource}
+          </span>
+        ) : null}
+        {w.book ? (
+          <span className="drift" style={{ color: 'var(--faint)' }}>
+            pool {usdCompact(w.book.liquidityUsd)} ·{' '}
+            {w.book.depth1pctUsd != null
+              ? `${w.book.depthAtLeast ? '≥ ' : ''}${usdCompact(w.book.depth1pctUsd)}`
+              : 'depth n/a'}
           </span>
         ) : null}
       </td>

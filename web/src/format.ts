@@ -62,6 +62,22 @@ export function price(n: number | null | undefined): string {
   });
 }
 
+/** "$1.25M", "$14k", "$950". */
+export function usdCompact(n: number | null | undefined): string {
+  if (n === null || n === undefined || !Number.isFinite(n)) return '—';
+  const a = Math.abs(n);
+  if (a >= 1e6) return `$${(n / 1e6).toFixed(a >= 1e7 ? 1 : 2)}M`;
+  if (a >= 1e3) return `$${(n / 1e3).toFixed(a >= 1e4 ? 0 : 1)}k`;
+  return `$${n.toFixed(a >= 100 ? 0 : 2)}`;
+}
+
+/** Signed percent from a percent number: +0.17%. */
+export function signedPct(p: number | null | undefined, digits = 2): string {
+  if (p === null || p === undefined || !Number.isFinite(p)) return '—';
+  const r = Number(p.toFixed(digits));
+  return `${r > 0 ? '+' : r < 0 ? '−' : ''}${Math.abs(r).toFixed(digits)}%`;
+}
+
 export function shortAddr(a: string): string {
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
 }

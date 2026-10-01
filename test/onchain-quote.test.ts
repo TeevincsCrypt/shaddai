@@ -39,9 +39,9 @@ describe('on-chain quote fallback', () => {
     expect(r!.priceImpactPercent!).toBeLessThan(0.05);
     // A pool DexScreener lists but the chain does not answer is not guessed at; the refusal names what was listed.
     await expect(
-      api.quote({ from: DEMO_USDT, to: getAddress('0x02Fca66C1D1aFB4E2A7884261eB00F63598a7436'), amount: u('1') }),
+      api.quote({ from: DEMO_USDT, to: getAddress('0x80106cb3ead06659a5ad19df39d9b4733863b9b0'), amount: u('1') }),
     ).rejects.toThrow(
-      'No PancakeSwap V2 or V3 pool prices this token against the pay-in token. Pools DexScreener lists for it: pancakeswap v2 NVDAB/USDT.',
+      'No PancakeSwap V2 or V3 pool prices this token against the pay-in token. Pools DexScreener lists for it: pancakeswap v2 MSFTB/USDT.',
     );
   });
 
@@ -123,7 +123,8 @@ describe('on-chain quote fallback', () => {
   it('applies the 1% rule to pool quotes too', async () => {
     const q = await quoteWithFallback(ctxWithFallback(false, 10_000), { ticker: 'AAPLB', usd: 6000 });
     expect(q.wrappers[0]!.status).toBe('refused');
-    expect(q.wrappers[0]!.reasons[0]).toMatch(/^Thin book: a \$6000 ticket moves the price/);
+    // The pool's own 1% depth (from reserves) is below the ticket, so it is refused before quoting.
+    expect(q.wrappers[0]!.reasons[0]).toBe('AAPLB 1% depth is $4.6k; ticket needs $6.0k of depth.');
   });
 
   it('serves quotes over HTTP with trading off', async () => {

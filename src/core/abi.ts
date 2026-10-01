@@ -112,6 +112,8 @@ export const v3PoolAbi = parseAbi([
   'function token0() view returns (address)',
   'function token1() view returns (address)',
   'function fee() view returns (uint24)',
+  // PancakeSwap V3 widens feeProtocol to uint32 (Uniswap V3 has uint8).
+  'function slot0() view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint32 feeProtocol, bool unlocked)',
 ]);
 export const v3QuoterAbi = parseAbi([
   'struct QuoteExactInputSingleParams { address tokenIn; address tokenOut; uint256 amountIn; uint24 fee; uint160 sqrtPriceLimitX96; }',
