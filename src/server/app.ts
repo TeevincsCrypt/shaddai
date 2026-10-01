@@ -11,12 +11,15 @@ import {
   submitBuy,
   type PayInSymbol,
 } from '../core/buy.js';
+import { MIN_LIQUIDITY_USD } from '../core/books.js';
 import { TtlCache } from '../core/cache.js';
 import { ledgerToCsv } from '../core/csv.js';
+import { DividendError, dividendAnswer } from '../core/dividend.js';
 import { LINKS, LISTA_MOOLAH, VENUS_KNOWN_VTOKENS } from '../core/registry.js';
 import { buildPreview } from '../core/preview.js';
 import { FallbackTransport } from '../core/rpc.js';
 import { getFeed, scanAddress, type ShaddaiContext } from '../core/scan.js';
+import { SpreadError, spreadFor, spreadTickers, type SpreadResult } from '../core/spread.js';
 import { TradeApiError } from '../core/trade-api.js';
 import type { ScanResult } from '../core/types.js';
 import { DEMO_ADDRESS } from '../fixtures/demo.js';
@@ -121,6 +124,17 @@ export function createApp(deps: AppDeps) {
     }
   });
 
+  app.get('/api/dividend', async (c) => {
+    const address = parseAddress(c.req.query('address'));
+    if (!address) return c.json({ error: 'Not a BSC address. Paste a 0x… address (40 hex characters).' }, 400);
+    try {
+      return c.json(await dividendAnswer(pick(address, c.req.query('demo')), address, c.req.query('ticker') ?? ''));
+    } catch (e) {
+      if (e instanceof DividendError) return c.json({ error: e.message }, e.status as 400 | 404);
+      return c.json({ error: `Dividend check failed: ${(e as Error).message}` }, 502);
+    }
+  });
+
   app.get('/api/feed', async (c) => {
     const ctx = c.req.query('demo') === '1' || deps.mode === 'demo' ? deps.demo() : deps.live();
     try {
@@ -172,6 +186,20 @@ export function createApp(deps: AppDeps) {
 
   // ---- Share-true Buy. Quotes and order building run here; signing happens in the user's wallet.
   const buyCtx = (demoFlag?: string) => (deps.mode === 'demo' || demoFlag === '1' ? deps.demo() : deps.live());
+
+  // Spread reads pools, quoter ladders and the RWA list; 30 s keeps a busy page from repeating that work.
+  const spreads = new TtlCache<SpreadResult>(30_000);
+  app.get('/api/spread', async (c) => {
+    const ctx = buyCtx(c.req.query('demo'));
+    const ticker = (c.req.query('ticker') ?? '').trim();
+    if (!ticker) return c.json({ tickers: spreadTickers(ctx), mode: ctx.mode });
+    try {
+      return c.json(await spreads.get(`${ctx.mode}:${ticker.toUpperCase()}`, () => spreadFor(ctx, ticker)));
+    } catch (e) {
+      if (e instanceof SpreadError) return c.json({ error: e.message }, e.status as 400 | 404);
+      return c.json({ error: `Spread failed: ${(e as Error).message}` }, 502);
+    }
+  });
   const buyFail = (e: unknown) => {
     if (e instanceof BuyError) return { status: e.status, error: e.message };
     if (e instanceof TradeApiError) return { status: 502 as const, error: e.message };
@@ -200,7 +228,14 @@ export function createApp(deps: AppDeps) {
       api: (ctx.buy ?? ctx.buyFallback)?.api.label ?? null,
       limits: (() => {
         const b = ctx.buy ?? ctx.buyFallback;
-        return b ? { maxUsd: b.maxUsd, maxImpactPct: b.maxImpactPct, slippagePct: b.slippagePct } : null;
+        return b
+          ? {
+              maxUsd: b.maxUsd,
+              maxImpactPct: b.maxImpactPct,
+              slippagePct: b.slippagePct,
+              minLiquidityUsd: b.minLiquidityUsd ?? MIN_LIQUIDITY_USD,
+            }
+          : null;
       })(),
       payIn: PAY_IN_SYMBOLS,
       tickers: [...tickers.values()].sort((a, b) => a.ticker.localeCompare(b.ticker)),

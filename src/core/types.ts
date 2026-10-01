@@ -142,6 +142,26 @@ export interface CollateralPosition {
   reasons: string[];
   lines: string[];
   oracle: OracleCheck | null;
+  /** Venus/Lista supply only: what the next scheduled multiplier does to this position. */
+  flip?: FlipPreview;
+}
+
+export interface FlipPreview {
+  status: 'scheduled' | 'none' | 'ondo-paused' | 'unread';
+  /** Raw units the protocol holds (what a balanceOf-based market counts). */
+  raw: string;
+  shareEqToday: string | null;
+  shareEqAfter: string | null;
+  multiplierToday: string | null;
+  multiplierAfter: string | null;
+  effectiveAt: number | null;
+  kind: ChangeKind | null;
+  splitLabel: string | null;
+  /** Per-share USD price used for deltaUsd (DEX price per raw token ÷ multiplier). */
+  shareUsd: number | null;
+  /** If the oracle is share-priced and the market reads raw balanceOf: raw × shareUsd × (old/new − 1). */
+  deltaUsd: number | null;
+  line: string;
 }
 
 export interface CollateralListing {

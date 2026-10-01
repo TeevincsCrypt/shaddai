@@ -9,19 +9,21 @@ import { Ledger } from './components/Ledger';
 import { LogoMark } from './components/Logo';
 import { Lookup } from './components/Lookup';
 import { Portfolio } from './components/Portfolio';
+import { Spread } from './components/Spread';
 import { StatementHead } from './components/StatementHead';
 import { Units } from './components/Units';
 
-export type Tab = 'portfolio' | 'ledger' | 'collateral' | 'buy' | 'units';
+export type Tab = 'portfolio' | 'ledger' | 'collateral' | 'spread' | 'buy' | 'units';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'portfolio', label: 'Portfolio' },
   { id: 'ledger', label: 'Ledger' },
   { id: 'collateral', label: 'Collateral' },
+  { id: 'spread', label: 'Spread' },
   { id: 'buy', label: 'Buy' },
   { id: 'units', label: 'How units work' },
 ];
 /** Tabs that stand on their own, without a scanned address. */
-const STANDALONE: Tab[] = ['buy', 'units'];
+const STANDALONE: Tab[] = ['spread', 'buy', 'units'];
 
 const tabFromHash = (): Tab => {
   const h = window.location.hash.replace('#', '');
@@ -210,6 +212,12 @@ export function App() {
         {tab === 'units' ? (
           <div className="wrap">
             <Units />
+          </div>
+        ) : null}
+
+        {tab === 'spread' ? (
+          <div className="wrap">
+            <Spread demo={result?.mode === 'demo' || config?.mode === 'demo'} />
           </div>
         ) : null}
 

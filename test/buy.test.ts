@@ -63,11 +63,47 @@ describe('share-true quote (demo)', () => {
 
   it('refuses a wrapper with no route and a ticket over the limit', async () => {
     const q = await quoteShareTrueBuy(demoContext(NOW), { ticker: 'TSLA', usd: 20 });
-    expect(q.wrappers.find((w) => w.token.symbol === 'TSLAon')!.reasons).toEqual([BUY_COPY.noRoute]);
+    // TSLAon has no pool at all in the demo, so it never reaches the quote.
+    expect(q.wrappers.find((w) => w.token.symbol === 'TSLAon')!.reasons).toEqual([
+      'TSLAon book not read: no pool listed for this token. Refused rather than assumed deep.',
+    ]);
+    const ctx = demoContext(NOW);
+    (ctx.buy!.api as FakeTradeApi).quote = async () => [];
+    const none = await quoteShareTrueBuy(ctx, { ticker: 'AAPL', usd: 20 });
+    expect(none.wrappers.map((w) => w.reasons)).toEqual([[BUY_COPY.noRoute], [BUY_COPY.noRoute]]);
     await expect(quoteShareTrueBuy(demoContext(NOW), { ticker: 'TSLA', usd: 1e6 })).rejects.toThrow(/limit of \$5000/);
     await expect(quoteShareTrueBuy(demoContext(NOW), { ticker: 'ZZZZ', usd: 5 })).rejects.toThrow(
       /no tokenized wrapper/,
     );
+  });
+
+  it('refuses the thin twin and quotes the liquid one in share-equivalents', async () => {
+    const q = await quoteShareTrueBuy(demoContext(NOW), { ticker: 'NVDA', usd: 50 });
+    const [b, on] = [
+      q.wrappers.find((w) => w.token.symbol === 'NVDAB')!,
+      q.wrappers.find((w) => w.token.symbol === 'NVDAon')!,
+    ];
+    expect(on).toMatchObject({
+      status: 'refused',
+      reasons: ['NVDAon book is $14k, under the $25k floor.'],
+      route: null,
+    });
+    expect(on.book).toMatchObject({ liquidityUsd: 14_000, source: 'onchain' });
+    expect(b.status).toBe('ok');
+    expect(b.book!.liquidityUsd).toBe(1_250_000);
+    expect(b.book!.depth1pctUsd!).toBeGreaterThan(50);
+    expect(Number(b.shareEqOut)).toBeCloseTo(Number(b.rawOut) * 1.0017, 12);
+    expect(sym(q, q.best)).toBe('NVDAB');
+  });
+
+  it('also refuses when the 1% depth does not cover the ticket', async () => {
+    const ctx = demoContext(NOW);
+    ctx.buy!.minLiquidityUsd = 10_000; // let the $14k book pass the floor, so depth decides
+    const on = (q: { wrappers: { token: { symbol: string }; status: string; reasons: string[] }[] }) =>
+      q.wrappers.find((w) => w.token.symbol === 'NVDAon')!;
+    expect(on(await quoteShareTrueBuy(ctx, { ticker: 'NVDA', usd: 50 })).status).toBe('ok');
+    const big = on(await quoteShareTrueBuy(ctx, { ticker: 'NVDA', usd: 100 }));
+    expect(big.reasons).toEqual(['NVDAon 1% depth is $70.88; ticket needs $100 of depth.']);
   });
 
   it('refuses when depth cannot be measured', async () => {
@@ -443,7 +479,7 @@ describe('compliance refusals (code 40304)', () => {
     (ctx.buy!.api as FakeTradeApi).quote = async () => {
       throw compliance();
     };
-    const q = await quoteShareTrueBuy(ctx, { ticker: 'NVDA', usd: 5 });
+    const q = await quoteShareTrueBuy(ctx, { ticker: 'AAPL', usd: 5 });
     expect(q.wrappers.map((w) => w.reasons)).toEqual([[BUY_COPY.compliance], [BUY_COPY.compliance]]);
     expect(q.notes.join(' ')).toContain('/api/buy/diagnose');
     expect(q.notes.join(' ')).not.toContain('Nothing to buy');

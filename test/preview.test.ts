@@ -18,7 +18,7 @@ describe('pre-action collateral preview (demo)', async () => {
   const item = (sym: string, label: RegExp) => p.items.find((i) => i.token.symbol === sym && label.test(i.label))!;
 
   it('states the flip in the brief’s words, with the stale-reference warning', () => {
-    const m = item('MSFTB', /Wallet → Lista/);
+    const m = item('MSFTB', /^Wallet$/);
     expect(m.flip).toMatchObject({ multiplier: '1.00202', shareEqAfter: '4.00808', kind: 'dividend-reinvest' });
     expect(m.lines[0]).toBe(
       'Multiplier flips at 2026-10-01 13:30 UTC (1× → 1.00202×). Raw stays 4. Share-eq becomes 4.008 (now 4).',

@@ -15,6 +15,7 @@ import {
   type Hex,
 } from 'viem';
 import { approveAbi, erc20Abi, scaledUiAbi } from './abi.js';
+import { MIN_LIQUIDITY_USD, readBooks, type WrapperBook } from './books.js';
 import { tokenRef } from './events.js';
 import { probeTokens, type TokenProbe } from './probe.js';
 import type { TokenInfo } from './registry.js';
@@ -55,6 +56,8 @@ export interface BuyConfig {
   quoteWallet: Address | null;
   /** USD1 contract if pinned by env; otherwise resolved through token search and checked on chain. */
   usd1: Address | null;
+  /** Wrappers whose deepest USDT pool holds less than this are refused (default $25,000). */
+  minLiquidityUsd?: number;
 }
 
 export class BuyError extends Error {
@@ -117,6 +120,14 @@ export interface WrapperQuote {
   fillOfTargetPct: number | null;
   impactPct: number | null;
   impactSource: 'vendor' | 'measured' | 'both' | null;
+  /** Deepest USDT pool on BSC: liquidity and 1% depth, the same figures as the Spread panel. */
+  book: {
+    pool: string | null;
+    source: WrapperBook['source'];
+    liquidityUsd: number | null;
+    depth1pctUsd: number | null;
+    depthAtLeast: boolean;
+  } | null;
 }
 
 export interface BuyQuote {
@@ -222,6 +233,16 @@ function wrappersFor(ctx: ShaddaiContext, ticker: string): { key: string; wrappe
   return { key, wrappers: ctx.tokens.filter((k) => k.ticker === key && (ctx.mode === 'demo' || !k.demoOnly)) };
 }
 
+/** "$14k", "$1.3M", "$50". */
+export const usdShort = (n: number) =>
+  n >= 1e6
+    ? `$${(n / 1e6).toFixed(1)}M`
+    : n >= 1e4
+      ? `$${Math.round(n / 1e3)}k`
+      : n >= 1e3
+        ? `$${(n / 1e3).toFixed(1)}k`
+        : `$${n < 100 ? n.toFixed(Number.isInteger(n) ? 0 : 2) : Math.round(n)}`;
+
 const bestRoute = (routes: Route[]) =>
   routes.reduce<Route | null>((b, r) => (!b || r.toAmount > b.toAmount ? r : b), null);
 
@@ -259,6 +280,11 @@ export async function quoteShareTrueBuy(ctx: ShaddaiContext, input: QuoteInput):
           .catch((e: Error) => ({ ok: false as const, error: e.message, compliance: isCompliance(e) })),
     ctx.prices.quote(wrappers.map((w) => w.address)).catch(() => null),
   ]);
+  const books = await readBooks(
+    { chain: ctx.chain, prices: ctx.prices },
+    wrappers.map((w) => ({ address: w.address, decimals: probes.get(w.address)!.unit.decimals })),
+    USDT_BSC,
+  ).catch(() => null);
 
   const notes: string[] = [];
   if (cfg.api.quoteOnly) {
@@ -300,6 +326,7 @@ export async function quoteShareTrueBuy(ctx: ShaddaiContext, input: QuoteInput):
       fillOfTargetPct: null,
       impactPct: null,
       impactSource: null,
+      book: null,
     };
     const refuse = (why: string) => {
       q.status = 'refused';
@@ -344,6 +371,31 @@ export async function quoteShareTrueBuy(ctx: ShaddaiContext, input: QuoteInput):
         q.notes.push(
           `Binance lists ${q.binanceRatio} shares per token; the chain says ${q.factor}. Shaddai uses the chain.`,
         );
+      }
+    }
+    // Thin twin: refuse before quoting when the deepest USDT pool cannot carry the ticket.
+    const book = books?.get(w.address) ?? null;
+    if (book) {
+      q.book = {
+        pool: book.pool?.label ?? null,
+        source: book.source,
+        liquidityUsd: book.liquidityUsd,
+        depth1pctUsd: book.depth1pctUsd,
+        depthAtLeast: book.depthAtLeast,
+      };
+    }
+    if (q.status === 'ok') {
+      const floor = cfg.minLiquidityUsd ?? MIN_LIQUIDITY_USD;
+      if (!book || book.liquidityUsd === null) {
+        const why = (book?.notes[0] ?? 'No pool listing.').replace(/^./, (c) => c.toLowerCase());
+        refuse(`${w.symbol} book not read: ${why} Refused rather than assumed deep.`);
+      } else if (book.liquidityUsd < floor) {
+        refuse(`${w.symbol} book is ${usdShort(book.liquidityUsd)}, under the ${usdShort(floor)} floor.`);
+      }
+      if (book?.depth1pctUsd != null && !book.depthAtLeast && book.depth1pctUsd < usd) {
+        refuse(`${w.symbol} 1% depth is ${usdShort(book.depth1pctUsd)}; ticket needs ${usdShort(usd)} of depth.`);
+      } else if (book && book.depth1pctUsd === null && q.status === 'ok') {
+        q.notes.push('Pool 1% depth not measured on chain; impact is measured from quotes instead.');
       }
     }
     if (q.status === 'refused' || p.mult === null) return q;

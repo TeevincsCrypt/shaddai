@@ -11,6 +11,7 @@ import { isAddress } from 'viem';
 import { z } from 'zod';
 import { quoteText, quoteWithFallback } from '../core/buy.js';
 import { ledgerToCsv } from '../core/csv.js';
+import { dividendAnswer } from '../core/dividend.js';
 import { buildPreview, previewText } from '../core/preview.js';
 import { probeTokens } from '../core/probe.js';
 import { LINKS } from '../core/registry.js';
@@ -298,6 +299,33 @@ export function createMcpServer(deps: McpDeps): McpServer {
             listings: r.collateral.listings,
             preview,
           },
+        };
+      } catch (e) {
+        return errorResult(e);
+      }
+    },
+  );
+
+  server.registerTool(
+    'sharetrue_dividend',
+    {
+      title: 'sharetrue.dividend',
+      description:
+        'Answers "did I get the dividend?" for one BSC address and one ticker (AAPL) or wrapper (AAPLB). Reads the multiplier ledger: the latest change that touched this holder, the raw balance it applied to, old → new factor, share-equivalents gained and an estimated USD value after typical 30% US withholding. Says "no multiplier change found for this holder" when none did, and says so when the address held none at the event block. Read-only; places no orders.',
+      inputSchema: {
+        address: addressArg,
+        ticker: z.string().describe('Ticker such as AAPL, or a wrapper symbol such as AAPLB or NVDAon.'),
+      },
+      annotations: readOnly,
+    },
+    async ({ address, ticker }) => {
+      try {
+        const p = pick(deps, address);
+        const a = await dividendAnswer(p.ctx, p.address, ticker);
+        const head = `Dividend check for ${a.address}, ${a.ticker}, at BSC block ${a.block}${a.mode === 'demo' ? ' — DEMO FIXTURE, not on-chain data' : ''}.`;
+        return {
+          content: [{ type: 'text', text: [head, '', a.card, ...a.notes.map((n) => `- ${n}`)].join('\n') }],
+          structuredContent: a as unknown as Record<string, unknown>,
         };
       } catch (e) {
         return errorResult(e);

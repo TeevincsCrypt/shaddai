@@ -23,6 +23,8 @@ export interface LedgerInput {
   /** Tokens the address holds through a protocol (Venus, Lista, LP) right now. */
   protocolExposure: Map<Address, string[]>;
   rawAt?: RawAtOptions;
+  /** Also cover these tokens even if the address holds none now (e.g. "did I get the dividend?" after a sale). */
+  include?: Iterable<Address>;
 }
 
 /**
@@ -35,6 +37,7 @@ export async function buildLedger(input: LedgerInput): Promise<LedgerRow[]> {
   const relevant = new Set<Address>();
   for (const [a, p] of probes) if (p.raw > 0n) relevant.add(a);
   for (const a of input.protocolExposure.keys()) relevant.add(a);
+  for (const a of input.include ?? []) relevant.add(a);
 
   const events = input.events.filter((e) => e.kind !== 'init' && relevant.has(e.token.address));
   const byToken = new Map<Address, MultiplierEvent[]>();

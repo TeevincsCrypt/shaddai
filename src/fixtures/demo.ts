@@ -37,6 +37,8 @@ export const DEMO_LISTA_MARKET_NVDAB: Hex = `0x${'de30'.repeat(15)}0002`;
 /** NVDAB as the loan asset: the demo address lends in one market and borrows in another. */
 export const DEMO_LISTA_MARKET_NVDAB_LEND: Hex = `0x${'de30'.repeat(15)}0003`;
 export const DEMO_LISTA_MARKET_NVDAB_BORROW: Hex = `0x${'de30'.repeat(15)}0004`;
+/** MSFTB posted as collateral while its multiplier change is scheduled: the pre-split preview case. */
+export const DEMO_LISTA_MARKET_MSFTB: Hex = `0x${'de30'.repeat(15)}0005`;
 
 export const XMPLB: TokenInfo = {
   symbol: 'XMPLB',
@@ -87,7 +89,10 @@ export function buildDemoScenario(
       ['2026-07-01T15:00:00Z', COUNTERPARTY, DEMO_ADDRESS, '15'],
       ['2026-07-02T10:00:00Z', DEMO_ADDRESS, AAPLB_USDT_PAIR, '5'],
     ],
-    MSFTB: [['2026-07-20T16:00:00Z', COUNTERPARTY, DEMO_ADDRESS, '4']],
+    MSFTB: [
+      ['2026-07-20T16:00:00Z', COUNTERPARTY, DEMO_ADDRESS, '7'],
+      ['2026-08-03T15:00:00Z', DEMO_ADDRESS, LISTA_MOOLAH, '3'],
+    ],
     TSLAB: [['2026-06-15T13:00:00Z', COUNTERPARTY, DEMO_ADDRESS, '2.5']],
     GOOGLB: [['2026-08-01T12:00:00Z', COUNTERPARTY, DEMO_ADDRESS, '0.0000004']],
     XMPLB: [
@@ -234,6 +239,16 @@ export function buildDemoScenario(
           positions: new Map([[DEMO_ADDRESS, { supplyShares: u('2') * 10n ** 6n, borrowShares: 0n, collateral: 0n }]]),
         },
         {
+          id: DEMO_LISTA_MARKET_MSFTB,
+          loanToken: USDT,
+          collateralToken: bySymbol('MSFTB'),
+          lltv: u('0.7'),
+          totals: [u('5000'), u('5000') * 10n ** 6n, u('400'), u('400') * 10n ** 6n],
+          positions: new Map([
+            [DEMO_ADDRESS, { supplyShares: 0n, borrowShares: u('400') * 10n ** 6n, collateral: u('3') }],
+          ]),
+        },
+        {
           id: DEMO_LISTA_MARKET_NVDAB_BORROW,
           loanToken: bySymbol('NVDAB'),
           collateralToken: USDT,
@@ -246,6 +261,7 @@ export function buildDemoScenario(
       ],
     },
     pairs: [
+      ...answeringPools(),
       {
         address: AAPLB_USDT_PAIR,
         token0: bySymbol('AAPLB'),
@@ -268,6 +284,37 @@ export function buildDemoScenario(
   };
 }
 
+/** Mark-pool address for a demo token (AAPLB has its own LP pair). */
+const markPair = (sym: string) =>
+  sym === 'AAPLB' ? AAPLB_USDT_PAIR : getAddress(`0xde31${bySymbol(sym).slice(6).toLowerCase()}`);
+
+/**
+ * NVDA's two wrappers get pools the fixture chain answers, so Spread and Buy can
+ * read reserves and depth: NVDAB deep, NVDAon thin ($14k book). Reserves split
+ * the listed liquidity half and half at the pool price.
+ */
+const ANSWERING: Record<string, number> = {
+  NVDAB: 1,
+  // The thin pool sits 0.3% above the token price Binance reports, so the demo shows a gap after the multiplier.
+  NVDAon: 1.003,
+};
+function answeringPools(): FakeScenario['pairs'] & object {
+  const { marks } = demoMarks();
+  return Object.entries(ANSWERING).map(([sym, skew]) => {
+    const m = marks.get(bySymbol(sym))!;
+    const half = m.liquidityUsd / 2;
+    return {
+      address: markPair(sym),
+      token0: bySymbol(sym),
+      token1: USDT,
+      reserve0: parseUnits((half / (m.rawUsd * skew)).toFixed(12), 18),
+      reserve1: parseUnits(half.toFixed(6), 18),
+      totalSupply: u('1000'),
+      balances: new Map(),
+    };
+  });
+}
+
 export function demoMarks(): { marks: Map<Address, MarkQuote>; pools: Map<Address, PoolRef[]> } {
   const raw: Record<string, [number, number]> = {
     // symbol: [price per raw token, liquidity]
@@ -278,7 +325,7 @@ export function demoMarks(): { marks: Map<Address, MarkQuote>; pools: Map<Addres
     GOOGLB: [251.1, 380_000],
     MUB: [118.4, 95_000],
     XMPLB: [100.4, 55_000],
-    NVDAon: [231.12, 820_000],
+    NVDAon: [231.12, 14_000],
     AAPLon: [228.77, 900_000],
     SPYon: [667.9, 1_900_000],
   };
@@ -286,10 +333,22 @@ export function demoMarks(): { marks: Map<Address, MarkQuote>; pools: Map<Addres
   const pools = new Map<Address, PoolRef[]>();
   for (const [sym, [p, liq]] of Object.entries(raw)) {
     const a = bySymbol(sym);
-    // Mark-only pools: addresses that answer nothing on the fixture chain.
-    const pair = sym === 'AAPLB' ? AAPLB_USDT_PAIR : getAddress(`0xde31${a.slice(6).toLowerCase()}`);
+    // Pools outside ANSWERING (and AAPLB's LP pair) are mark-only: the fixture chain answers nothing there.
+    const pair = markPair(sym);
     marks.set(a, { rawUsd: p, dex: 'pancakeswap', pair, liquidityUsd: liq, thin: liq < 10_000 });
-    pools.set(a, [{ pair, dex: 'pancakeswap', labels: ['v2'], token0Symbol: sym, token1Symbol: 'USDT' }]);
+    pools.set(a, [
+      {
+        pair,
+        dex: 'pancakeswap',
+        labels: ['v2'],
+        token0Symbol: sym,
+        token1Symbol: 'USDT',
+        baseToken: a,
+        quoteToken: USDT,
+        liquidityUsd: liq,
+        rawUsd: p,
+      },
+    ]);
   }
   return { marks, pools };
 }
@@ -381,6 +440,16 @@ export function demoDefi(): DefiPosition[] {
       token: nvdab,
       symbol: 'NVDAB',
       amount: '0.5',
+    },
+    {
+      ...base,
+      protocolId: 'lista-lending',
+      protocolName: 'Lista Lending',
+      healthFactor: '2.69',
+      side: 'supply',
+      token: bySymbol('MSFTB'),
+      symbol: 'MSFTB',
+      amount: '3',
     },
     {
       ...base,

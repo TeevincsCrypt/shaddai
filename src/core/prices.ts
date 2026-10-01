@@ -17,6 +17,13 @@ export interface PoolRef {
   token0Symbol: string;
   token1Symbol: string;
   url?: string;
+  /** DexScreener's base and quote token addresses (its order, not necessarily the pool's token0/token1). */
+  baseToken?: Address;
+  quoteToken?: Address;
+  /** DexScreener's pool liquidity in USD. */
+  liquidityUsd?: number;
+  /** Price of the looked-up token in this pool, USD per raw token. */
+  rawUsd?: number;
 }
 
 export interface PriceSource {
@@ -94,6 +101,11 @@ export function pickMarks(tokens: Address[], pairs: DexPair[]) {
       const isBase = p.baseToken.address.toLowerCase() === lc;
       const isQuote = p.quoteToken.address.toLowerCase() === lc;
       if (!isBase && !isQuote) continue;
+      const baseUsd = Number(p.priceUsd);
+      const native = Number(p.priceNative);
+      // priceNative = base price in quote units, so quote USD = baseUsd / priceNative.
+      const rawUsd = isBase ? baseUsd : native > 0 ? baseUsd / native : NaN;
+      const liq = p.liquidity?.usd ?? 0;
       refs.push({
         pair: getAddress(p.pairAddress),
         dex: p.dexId,
@@ -101,14 +113,13 @@ export function pickMarks(tokens: Address[], pairs: DexPair[]) {
         token0Symbol: p.baseToken.symbol,
         token1Symbol: p.quoteToken.symbol,
         url: p.url,
+        baseToken: getAddress(p.baseToken.address),
+        quoteToken: getAddress(p.quoteToken.address),
+        liquidityUsd: liq,
+        rawUsd: Number.isFinite(rawUsd) && rawUsd > 0 ? rawUsd : undefined,
       });
-      const baseUsd = Number(p.priceUsd);
-      const native = Number(p.priceNative);
       if (!Number.isFinite(baseUsd) || baseUsd <= 0) continue;
-      // priceNative = base price in quote units, so quote USD = baseUsd / priceNative.
-      const rawUsd = isBase ? baseUsd : native > 0 ? baseUsd / native : NaN;
       if (!Number.isFinite(rawUsd) || rawUsd <= 0) continue;
-      const liq = p.liquidity?.usd ?? 0;
       if (!best || liq > best.liquidityUsd) {
         best = {
           rawUsd,

@@ -236,6 +236,21 @@ connectors' code and generated types. Nothing in this section has been checked a
 - The RWA list reported Ondo wrappers as `marketStatus: "premarket"` with a `nextOpenTime`; bStocks wrappers had no
   `marketStatus`. Both were `TRADING`.
 
+## 20. RWA Data API fields used by Spread (from the connector's type docs, @binance-web3/wallet 12.3.1)
+
+- `referencePrice` is documented as "a per-share converted price derived from the on-chain token price, not an official
+  quote from the traditional stock market". The RWA token list, `/rwa/price` and `/rwa/underlying-market` all carry it.
+- No endpoint in the connector returns the underlying's last close or previous close. `/rwa/underlying-market` has
+  52-week high/low, volume, market cap, P/E, dividend yield and latest dividend, but no close price.
+- `tokenPrice` is "On-chain token price (USD)". The docs do not say whether it is per raw token or per UI unit. Shaddai
+  treats it as raw (what trades on chain) and divides by the on-chain factor; Binance's own `referencePrice` is shown
+  next to it for comparison.
+- `statusInfo.marketStatus` values: `premarket`, `regular`, `postmarket`, `overnight`, `closed`, `pause`.
+  `reasonMsg` examples: "Weekend or Holiday"; for `ASSET_PAUSED`: `cash_dividend`, `stock_dividend`, `stock_split`,
+  `merger`, `acquisition`, `spinoff`, `maintenance`. `nextOpenTime` and `nextCloseTime` are Unix milliseconds.
+- In the first live quotes (section 19), bStocks wrappers had `marketStatus: null`; Ondo wrappers had `premarket` with
+  a `nextOpenTime`.
+
 ## Measured on mainnet
 
 First live run of the deployed app: Vercel, one NodeReal BSC endpoint, index built during the Vercel build from
