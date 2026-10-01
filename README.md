@@ -280,10 +280,14 @@ A wrapper is **refused**, not quoted, when:
 - the ticket moves the price more than 1%, measured against a probe quote at a tenth of the size (and the vendor's own
   figure when it gives one). If depth cannot be measured at all, it is refused rather than assumed deep.
 
-Equity tokens settle as **RFQ orders** on the Binance Web3 API: one exact-amount approve (the calldata is decoded and
-checked, then dry-run through the Transaction API) and one EIP-712 order signature. Before the wallet is asked to sign,
-Shaddai checks that the order names the connected wallet and the chosen token on chain 56. The vendor settles on BSC and
-the tab polls the order until it is filled. There is no swap transaction to simulate for an RFQ order; the tab says so.
+Equity-token routes from the Binance Web3 API come in two kinds, and the Buy tab handles both. Each starts with one
+exact-amount approve: the calldata is decoded and checked, then dry-run through the Transaction API.
+
+- **SWAP** (an aggregator such as LiquidMesh; what live BSC quotes have returned so far): the wallet sends one swap
+  transaction, dry-run first, and the tab waits for the receipt.
+- **RFQ**: the wallet signs one EIP-712 order. Before it is asked to sign, Shaddai checks that the order names the
+  connected wallet and the chosen token on chain 56. The vendor settles on BSC and the tab polls the order until it is
+  filled. There is no swap transaction to simulate for an RFQ order; the tab says so.
 
 Pay-in is USDT (`0x55d3…7955`, the chain-56 token in Binance's own API example) or USD1, which is looked up through the
 Market API's token search and used only if its contract answers `symbol() = "USD1"`.

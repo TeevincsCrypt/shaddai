@@ -9,8 +9,11 @@
  * quote) arrive as null with the message dropped, and its simulate call refuses
  * an EVM-only request.
  *
- * Equity tokens (bStocks, Ondo) always quote as RFQ routes: the user signs an
+ * Equity tokens (bStocks, Ondo) quote as either route type. SWAP: an
+ * aggregator returns a transaction the wallet sends. RFQ: the user signs an
  * EIP-712 order, the API forwards it to a vendor, and the vendor settles.
+ * The API docs say equity tokens always return RFQ; live BSC quotes have come
+ * back as SWAP, so both paths are kept.
  */
 import { createHmac } from 'node:crypto';
 import { getAddress, type Address, type Hex } from 'viem';
@@ -131,6 +134,10 @@ export interface TradeApi {
 }
 
 export class TradeApiError extends Error {
+  /** Set when the API answered with a non-2xx status. */
+  httpStatus?: number;
+  /** From a Retry-After header on a 429. */
+  retryAfterMs?: number;
   constructor(
     message: string,
     readonly code?: number | string,
@@ -184,6 +191,8 @@ export class BinanceWeb3Api implements TradeApi {
       basePath?: string;
       timeoutMs?: number;
       fetchImpl?: typeof fetch;
+      /** Waits before each retry of a rate-limited (HTTP 429) request. */
+      retryDelaysMs?: number[];
     },
   ) {
     this.base = (opts.basePath ?? BINANCE_WEB3_BASE).replace(/\/$/, '');
@@ -194,6 +203,25 @@ export class BinanceWeb3Api implements TradeApi {
    * where path includes the base path ("/build") and timestamp is ISO-8601.
    */
   private async call<T>(
+    what: string,
+    method: 'GET' | 'POST',
+    path: string,
+    params: Record<string, unknown>,
+  ): Promise<T> {
+    // A 429 means the request was turned away before it was processed, so it is safe to send again.
+    const delays = this.opts.retryDelaysMs ?? [800, 2000];
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.send<T>(what, method, path, params);
+      } catch (e) {
+        if (!(e instanceof TradeApiError) || e.httpStatus !== 429 || attempt >= delays.length) throw e;
+        const hinted = e.retryAfterMs ?? 0;
+        await new Promise((r) => setTimeout(r, Math.min(Math.max(delays[attempt]!, hinted), 5000)));
+      }
+    }
+  }
+
+  private async send<T>(
     what: string,
     method: 'GET' | 'POST',
     path: string,
@@ -239,10 +267,14 @@ export class BinanceWeb3Api implements TradeApi {
       /* not JSON */
     }
     if (!res.ok) {
-      throw new TradeApiError(
+      const err = new TradeApiError(
         `${what}: HTTP ${res.status}${parsed?.msg ? ` ${parsed.msg}` : ''}`,
         parsed?.code ?? res.status,
       );
+      err.httpStatus = res.status;
+      const ra = Number(res.headers.get('retry-after'));
+      if (Number.isFinite(ra) && ra > 0) err.retryAfterMs = ra * 1000;
+      throw err;
     }
     if (!parsed) throw new TradeApiError(`${what}: response is not JSON`);
     return unwrap(parsed, what);

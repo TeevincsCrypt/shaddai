@@ -496,6 +496,39 @@ describe('network errors', () => {
   });
 });
 
+describe('rate limits (HTTP 429)', () => {
+  const answer = (statuses: number[]) => {
+    let calls = 0;
+    const fetchImpl = (async () => {
+      const status = statuses[Math.min(calls++, statuses.length - 1)]!;
+      const body = status === 200 ? { code: 0, data: [] } : { code: status, msg: 'Rate limit exceeded' };
+      return new Response(JSON.stringify(body), { status });
+    }) as unknown as typeof fetch;
+    return { fetchImpl, calls: () => calls };
+  };
+
+  it('sends a rate-limited request again and returns the answer', async () => {
+    const f = answer([429, 200]);
+    const api = new BinanceWeb3Api({ apiKey: 'k', apiSecret: 's', fetchImpl: f.fetchImpl, retryDelaysMs: [0, 0] });
+    await expect(api.rwaTokens()).resolves.toEqual([]);
+    expect(f.calls()).toBe(2);
+  });
+
+  it('gives up after the configured retries', async () => {
+    const f = answer([429]);
+    const api = new BinanceWeb3Api({ apiKey: 'k', apiSecret: 's', fetchImpl: f.fetchImpl, retryDelaysMs: [0, 0] });
+    await expect(api.rwaTokens()).rejects.toThrow('RWA token list: HTTP 429 Rate limit exceeded');
+    expect(f.calls()).toBe(3);
+  });
+
+  it('does not retry other errors', async () => {
+    const f = answer([500]);
+    const api = new BinanceWeb3Api({ apiKey: 'k', apiSecret: 's', fetchImpl: f.fetchImpl, retryDelaysMs: [0, 0] });
+    await expect(api.rwaTokens()).rejects.toThrow('HTTP 500');
+    expect(f.calls()).toBe(1);
+  });
+});
+
 describe('diagnose readings', () => {
   it('says so when nothing reached Binance', async () => {
     const ctx = demoContext(NOW);
