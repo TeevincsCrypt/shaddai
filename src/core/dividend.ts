@@ -13,7 +13,7 @@ import { toPrice } from './portfolio.js';
 import { probeTokens } from './probe.js';
 import { scanAddress, type ShaddaiContext } from './scan.js';
 import type { LedgerRow, Price, TokenRef } from './types.js';
-import { fmtAmount, fmtMultiplier } from './units.js';
+import { decimalString, fmtAmount, fmtMultiplier } from './units.js';
 
 export const DIVIDEND_COPY = {
   miss: 'No multiplier change found for this holder.',
@@ -47,7 +47,8 @@ export interface DividendEvent {
 
 export interface DividendWrapper {
   token: TokenRef;
-  status: 'hit' | 'not-held' | 'miss' | 'unread';
+  /** protocol: none in the wallet at the event, but held through Venus/Lista/an LP today (not read at the event block). */
+  status: 'hit' | 'protocol' | 'not-held' | 'miss' | 'unread';
   event: DividendEvent | null;
   pending: DividendEvent | null;
   earlierHits: number;
@@ -56,7 +57,7 @@ export interface DividendWrapper {
 }
 
 export interface DividendAnswer {
-  status: 'hit' | 'not-held' | 'miss' | 'unread' | 'indexing' | 'unavailable';
+  status: 'hit' | 'protocol' | 'not-held' | 'miss' | 'unread' | 'indexing' | 'unavailable';
   mode: 'live' | 'demo';
   address: Address;
   ticker: string;
@@ -124,7 +125,13 @@ export function hitSentence(t: TokenRef, e: DividendEvent): string {
   return `${t.symbol}'s ${Factor.toLowerCase()} changed on ${where} (${e.kind.replace(/-/g, ' ')}). ${moved} Your ${unitName(t)} changed by ${delta}, ${usd}.`;
 }
 
-function answerFor(t: TokenRef, rows: LedgerRow[]): DividendWrapper {
+/** Where the address holds a token through a protocol today (raw units, decimal string). */
+export interface ProtocolHolding {
+  label: string;
+  raw: string;
+}
+
+export function answerFor(t: TokenRef, rows: LedgerRow[], inProtocols: ProtocolHolding[] = []): DividendWrapper {
   const mine = rows.filter((r) => r.token.address === t.address).sort((a, b) => b.effectiveAt - a.effectiveAt);
   const effective = mine.filter((r) => r.status === 'effective');
   const hits = effective.filter(held);
@@ -134,7 +141,9 @@ function answerFor(t: TokenRef, rows: LedgerRow[]): DividendWrapper {
     ? ` A further change is scheduled for ${pending.date}: ${fx(pending.oldMultiplier)} → ${fx(pending.newMultiplier)} (projected ${pending.deltaShareEq !== null ? amt(pending.deltaShareEq) : 'unread'} ${unitName(t)} on the current balance).`
     : '';
   const keepNotes = (r: LedgerRow) =>
-    r.notes.filter((n) => !/withholding|No Transfer event|current mark|Not tax advice/i.test(n));
+    r.notes.filter((n) => !/withholding|No Transfer event|current mark|Not tax advice|Also held via/i.test(n));
+  const protoRaw = inProtocols.reduce((sum, h) => sum + parseUnits(h.raw, 18), 0n);
+  const protoWhere = inProtocols.map((h) => h.label).join(', ');
 
   if (hits.length) {
     const top = hits[0]!;
@@ -145,7 +154,11 @@ function answerFor(t: TokenRef, rows: LedgerRow[]): DividendWrapper {
       event,
       pending,
       earlierHits: hits.length - 1,
-      sentence: `${hitSentence(t, event)} ${DIVIDEND_COPY.noTransfer}${pendingLine}`,
+      sentence: `${hitSentence(t, event)} ${DIVIDEND_COPY.noTransfer}${
+        protoRaw > 0n
+          ? ` That covers the wallet; the ${amt(decimalString(protoRaw, 18))} raw ${t.symbol} held through ${protoWhere} today is not in it (protocol positions are not read at past blocks).`
+          : ''
+      }${pendingLine}`,
       notes: keepNotes(top),
     };
   }
@@ -163,13 +176,28 @@ function answerFor(t: TokenRef, rows: LedgerRow[]): DividendWrapper {
         notes: keepNotes(last),
       };
     }
+    const change = `${t.symbol} changed its ${event.factor} ${fx(event.oldMultiplier)} → ${fx(event.newMultiplier)} on ${event.date}${event.block ? ` (block ${event.block})` : ''}`;
+    if (protoRaw > 0n) {
+      // The multiplier applies to every raw token, including those a protocol holds for this address.
+      const ifIn =
+        (protoRaw * (parseUnits(event.newMultiplier, 18) - parseUnits(event.oldMultiplier, 18))) / 10n ** 18n;
+      return {
+        token: t,
+        status: 'protocol',
+        event,
+        pending,
+        earlierHits: 0,
+        sentence: `${change}. This address held no ${t.symbol} in its wallet at that block, but it holds ${amt(decimalString(protoRaw, 18))} raw ${t.symbol} through ${protoWhere} today. Shaddai does not read protocol positions at past blocks, so whether that position was in for this change is not read. If it was, the change added about ${amt(decimalString(ifIn, 18))} ${unitName(t)} to it, with no Transfer event.${pendingLine}`,
+        notes: [],
+      };
+    }
     return {
       token: t,
       status: 'not-held',
       event,
       pending,
       earlierHits: 0,
-      sentence: `${DIVIDEND_COPY.miss} ${t.symbol} changed its ${event.factor} ${fx(event.oldMultiplier)} → ${fx(event.newMultiplier)} on ${event.date}${event.block ? ` (block ${event.block})` : ''}, but this address held no ${t.symbol} at that block.${pendingLine}`,
+      sentence: `${change}, but this address held no ${t.symbol} at that block.${pendingLine}`,
       notes: [],
     };
   }
@@ -179,7 +207,7 @@ function answerFor(t: TokenRef, rows: LedgerRow[]): DividendWrapper {
     event: null,
     pending,
     earlierHits: 0,
-    sentence: `${DIVIDEND_COPY.miss} The index holds no ${t.symbol} multiplier change for this address.${pendingLine}`,
+    sentence: `The index holds no ${t.symbol} multiplier change for this address.${pendingLine}`,
     notes: [],
   };
 }
@@ -258,14 +286,21 @@ export async function dividendAnswer(
     rows = [...rows, ...more];
   }
 
-  const answers = wrappers.map((t) => answerFor(tokenRef(t), rows));
-  const rank = { hit: 0, unread: 1, 'not-held': 2, miss: 3 } as const;
+  const holdings = (token: Address): ProtocolHolding[] =>
+    scan.collateral.positions
+      .filter((p) => p.token.address === token && p.side !== 'borrow')
+      .map((p) => ({ label: `${p.protocol} (${p.market.label})`, raw: p.raw }));
+  const answers = wrappers.map((t) => answerFor(tokenRef(t), rows, holdings(t.address)));
+  const rank = { hit: 0, protocol: 1, unread: 2, 'not-held': 3, miss: 4 } as const;
   answers.sort((a, b) => rank[a.status] - rank[b.status]);
   const hits = answers.filter((a) => a.status === 'hit');
   const status = answers[0]!.status;
   const shown = hits.length ? hits : [answers[0]!];
   const others = answers.filter((a) => !shown.includes(a) && a.status !== 'miss');
+  // Said once, and only when nothing touched the holder anywhere Shaddai can see.
+  const missLine = status === 'not-held' || status === 'miss' ? DIVIDEND_COPY.miss : null;
   const card = [
+    missLine,
     ...shown.map((a) => a.sentence),
     ...others.map((a) => a.sentence),
     hits.some((a) => a.event?.kind === 'dividend-reinvest') ? DIVIDEND_COPY.withholding : null,

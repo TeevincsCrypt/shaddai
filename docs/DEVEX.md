@@ -233,6 +233,13 @@ connectors' code and generated types. Nothing in this section has been checked a
 - NVDAB in the same moment: `HTTP 429 Rate limit exceeded`. Two tickers were quoted at once, each wrapper asking for
   a full-size and a probe quote, so about eight quote calls landed together. Shaddai now quotes one wrapper at a time
   and sends a 429 again after 0.8 s and 2 s (or the `Retry-After` value).
+- After the Spread/Buy book reader shipped (5 Oct 2026, block 125,783,668), $10 of NVDA: NVDAB's deepest USDT pool is
+  PancakeSwap V3 `0x8FB4…690C` (0.25% fee), DexScreener liquidity $3.84M, measured 1% depth about $410k. NVDAon's is
+  PancakeSwap V3 `0xB90B…9308` (1% fee), liquidity $9.7k, 1% depth $362. Buy refused NVDAon ("book is $9.7k, under
+  the $25k floor") and quoted NVDAB through LiquidMesh (SWAP). The RWA list had NVDAon at `marketStatus: "overnight"`.
+- The Lista borrower `0x1542…2972` holds about 900 NVDAB as Lista collateral and none in its wallet. The ledger reads
+  wallet balances at past blocks; protocol positions at past blocks are not read, so the dividend answer says that
+  instead of "not held".
 - The RWA list reported Ondo wrappers as `marketStatus: "premarket"` with a `nextOpenTime`; bStocks wrappers had no
   `marketStatus`. Both were `TRADING`.
 

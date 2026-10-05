@@ -26,7 +26,12 @@ export function DividendCheck({ result }: { result: ScanResult }) {
     }
   };
 
-  const tone = answer?.status === 'hit' ? 'info' : answer?.status === 'unread' ? 'watch' : 'quiet';
+  const tone =
+    answer?.status === 'hit'
+      ? 'info'
+      : answer?.status === 'unread' || answer?.status === 'protocol'
+        ? 'watch'
+        : 'quiet';
   return (
     <div className="dividend-check card">
       <div className="dividend-ask">
@@ -59,7 +64,9 @@ export function DividendCheck({ result }: { result: ScanResult }) {
                 ? 'No change for this holder'
                 : answer.status === 'unread'
                   ? 'Balance at the event not read'
-                  : answer.status}
+                  : answer.status === 'protocol'
+                    ? 'Held through a protocol: not read at the event'
+                    : answer.status}
           </span>
           <p>{answer.card}</p>
           {answer.notes.length ? (
