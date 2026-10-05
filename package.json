@@ -24,6 +24,8 @@
     "index:snapshot": "tsx scripts/build-index.ts",
     "discover:ondo": "tsx scripts/discover-ondo.ts",
     "mcp": "tsx src/mcp/stdio.ts",
+    "demo:deck": "tsx demo/render-deck.ts",
+    "demo:walkthrough": "tsx demo/record-walkthrough.ts",
     "verify:evm": "npm --prefix verify/evm install --no-audit --no-fund && tsx verify/evm/run.ts"
   },
   "dependencies": {
@@ -45,6 +47,7 @@
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.2.0",
     "concurrently": "^9.2.0",
+    "playwright-core": "1.56.1",
     "prettier": "^3.9.9",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

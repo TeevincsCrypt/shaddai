@@ -1,0 +1,47 @@
+1
+00:00:00,606 --> 00:00:18,206
+Tokenized stocks pay dividends in a way wallets can't see. On September 10, NVDAB's multiplier rose to 1.000778. No token was sent. The wallet still shows 10 tokens. The holder owns 10.0078 shares.
+
+2
+00:00:18,610 --> 00:00:30,210
+That dividend is income, but no Transfer event records it. Tax tools see nothing, and no wallet can answer: did I get the dividend?
+
+3
+00:00:30,614 --> 00:00:46,214
+Lending protocols count raw tokens. This Lista borrower posted 899.87 NVDAB, worth 900.57 shares. If Lista's oracle prices per share, that's about $295 undercounted today. After a 2-for-1 split, half.
+
+4
+00:00:46,617 --> 00:01:04,217
+NVIDIA has two tokens on BSC. NVDAB has a $3.8 million pool. NVDAon has under $10,000. A raw price gap can just be a dividend. And for $25, GOOGLB bought 0.9% more Alphabet than GOOGLon.
+
+5
+00:01:04,622 --> 00:01:16,222
+Same holding, four answers. Binance multiplies, wallets don't, lenders price raw tokens, and tax software sees nothing.
+
+6
+00:01:16,630 --> 00:01:27,345
+Shaddai is share-true accounting for tokenized stocks on BSC. Store raw, show share-equivalents, and if a factor can't be read, say unread. Never assume one.
+
+7
+00:01:27,748 --> 00:01:43,348
+From one address: a share-true portfolio, a corporate-action ledger with CSV, collateral warnings with a pre-split preview, a direct dividend answer, a per-share wrapper spread, and a buy sized in dollars of stock.
+
+8
+00:01:43,751 --> 00:01:59,351
+It reads the BEP-677 multiplier and its schedule, Ondo's sValue oracle, Venus, Lista and PancakeSwap, and the Binance Web3 API. Out come the app, a CSV, and MCP tools.
+
+9
+00:01:59,756 --> 00:02:14,356
+All measured on BSC mainnet: real multipliers, a real Lista borrower, live Binance quotes, and a thin Ondo twin refused before quoting.
+
+10
+00:02:14,759 --> 00:02:28,359
+Agents get the same answers as MCP tools. An agent that calls balanceOf reports tokens as shares. One that calls sharetrue dividend gets it right.
+
+11
+00:02:28,763 --> 00:02:41,363
+Spot only, BSC only. Your wallet signs. Unread factors, halted markets and thin books are refused, not guessed.
+
+12
+00:02:41,765 --> 00:02:49,365
+Your wallet counts tokens. Shaddai counts shares. Part two: the walkthrough.

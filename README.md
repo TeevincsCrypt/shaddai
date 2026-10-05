@@ -1,9 +1,33 @@
 # Shaddai
 
-Share-true accounting for tokenized stocks on BSC. Wallets count tokens; issuers pay you in multipliers. Shaddai is the
-statement in the middle.
+**Your wallet counts tokens. Shaddai counts shares.**
 
-Paste a BSC address and Shaddai returns three things:
+Share-true accounting for tokenized stocks on BNB Smart Chain: bStocks, plus the Ondo and xStocks twins where a
+verified contract exists. BSC mainnet, spot only. Built for BNB Hack: Tokenized Stocks Edition.
+
+**Watch:** [Part 1 · Pitch](demo/out/part1-pitch.mp4) (2:50) · [Part 2 · Walkthrough](demo/out/part2-walkthrough.mp4)
+(about 3 min). Both are silent with captions; timed voice-over scripts and subtitle files sit next to them in
+[`demo/out`](demo/out). See [Demo videos](#demo-videos).
+
+## The problem
+
+Tokenized stocks pay corporate actions through a share factor, not through transfers. bStocks raise `uiMultiplier()`
+(BEP-677 / ERC-8056); Ondo raises `sValue` on its oracle. The raw balance stays put. Everything downstream misreads it:
+
+- **Wallets show raw tokens.** NVDAB's multiplier went 1.000000 → 1.000778 on 10 Sep 2026 (BSC mainnet, block
+  120,970,451). A holder of 10 NVDAB still sees 10.000000; they own 10.007782 share-equivalents.
+- **No Transfer event, so no income on record.** Tax exports that read transfers see nothing, and no wallet can answer
+  "did I get the dividend?".
+- **Lending counts raw tokens.** A Lista borrower on mainnet has 899.87 NVDAB posted (900.57 share-equivalents). Lista
+  reads the ERC-20 balance; if its oracle prices per share, that borrower's five positions are undercounted by about $295
+  today, and a 2-for-1 split would show half the value.
+- **Twins are not alike.** NVDAB's deepest USDT pool holds $3.84M; NVDAon's holds $9.7k. A raw price gap between them can
+  be just the dividend factor, and the cheaper token is not always more stock: for the same $25, GOOGLB bought 0.9% more
+  Alphabet than GOOGLon.
+
+## What Shaddai does
+
+Paste a BSC address:
 
 1. **Share-true portfolio.** Every known bStock / Ondo token on the address, as raw tokens _and_ share-equivalents,
    including what sits inside Venus, Lista or a V2 pool.
@@ -12,22 +36,30 @@ Paste a BSC address and Shaddai returns three things:
 3. **Collateral warning.** If the tokens are supplied to Venus, posted on Lista, or sitting in an LP, a severity-graded
    warning that the protocol counts raw ERC-20 units, not `balanceOfUI`. When a multiplier change is scheduled, it
    shows three numbers: raw units the protocol holds, share-equivalents today, share-equivalents after the flip.
-
-Plus, without an address:
-
-4. **Spread.** Every verified wrapper of a ticker priced per share-equivalent, after the multiplier: a raw gap can be a
-   dividend. See [Spread](#spread).
-5. **"Did I get the dividend?"** One ticker, one plain-English answer from the ledger, also an MCP tool. See
+4. **"Did I get the dividend?"** One ticker, one plain-English answer from the ledger. See
    [Dividend answer](#dividend-answer).
+
+Without an address:
+
+5. **Spread.** Every verified wrapper of a ticker priced per share-equivalent, after the multiplier. See [Spread](#spread).
 
 And one way to act on it:
 
-6. **Share-true Buy.** Size a spot buy in dollars of shares; every wrapper of the ticker is quoted and ranked by the
+6. **Share-true Buy.** Size a spot buy in dollars of stock; every wrapper of the ticker is quoted and ranked by the
    share-equivalents you would own, thin twins are refused, and your own wallet approves and signs. See [Buy](#buy).
+
+Agents get the same answers as [MCP tools](#mcp-tools): `sharetrue.portfolio`, `.ledger`, `.collateral`,
+`.dividend`, `.explain` and `.quoteBuy`.
 
 Every price, gap, buy size and collateral figure is in share-equivalents. A factor that was not read is shown as
 unread, never as 1.0. Everything except Buy only reads. Buy is off unless the server has a Binance Web3 API key, and
 even then Shaddai never holds funds or keys: the user's wallet signs.
+
+**Contents:** [Demo script](#demo-script) · [Run it](#run-it) · [Deploy on Vercel](#deploy-on-vercel) ·
+[Environment variables](#environment-variables) · [How it reads the chain](#how-it-reads-the-chain) ·
+[What is verified](#what-is-verified-and-what-is-not) · [API](#api) · [Buy](#buy) · [Spread](#spread) ·
+[Dividend answer](#dividend-answer) · [Pre-action preview](#pre-action-preview) · [MCP tools](#mcp-tools) ·
+[Demo videos](#demo-videos) · [Project layout](#project-layout)
 
 ## Demo script
 
@@ -190,7 +222,7 @@ HMAC-SHA256. Related settings:
 | `SHADDAI_CACHE_DIR`          | `.cache`           | `/tmp/shaddai-cache` on Vercel, set automatically.                                               |
 | `SHADDAI_SEED_DIR`           | `dist/index-cache` | Where the deploy-time snapshot is written and read.                                              |
 
-Locally, load `.env` before starting, for example `set -a; source .env; set +a; npm start`.
+Locally, put them in `.env` and start with `npm run local`.
 
 ## How it reads the chain
 
@@ -249,6 +281,16 @@ Verified on mainnet through the deployed app (29 Sep 2026; details in [`docs/DEV
 - Ondo's SyntheticSharesOracle was found on-chain at `0xF4Fd…F15e`; `getSValue(address)` answered for 9/9 Ondo tokens.
 - The deploy-time index snapshot builds on Vercel and a cold function serves from it.
 
+Verified later, from the Singapore region (1–5 Oct 2026):
+
+- Every Binance Web3 API call in `/api/buy/diagnose` succeeds (it was refused with code 40304 from Washington, D.C.).
+- Live share-true quotes: equity tokens route as `SWAP` through LiquidMesh; GOOGLB gave 0.9% more share-equivalents than
+  GOOGLon for $25.
+- The book reader on real pools: NVDAB's deepest USDT pool is a PancakeSwap V3 pool with $3.84M (1% depth about $410k);
+  NVDAon's has $9.7k, and Buy refuses it before quoting.
+- Binance's DeFi Data API reports the Lista borrower's bStock collateral in raw units, matching Shaddai's raw count.
+- `sharetrue_dividend` answers on mainnet, and says so when a holder's tokens sit in Lista rather than the wallet.
+
 Verified against the real reference contract, not on mainnet (`npm run verify:evm`, 18 checks): the
 [bnb-chain/bep-677-contracts](https://github.com/bnb-chain/bep-677-contracts) token, compiled with solc 0.8.24 and
 deployed behind a BeaconProxy on a local Hardhat EVM, driven through a dividend, a scheduled-then-overwritten change,
@@ -259,6 +301,8 @@ Transfer replay, and the split gets no USD credit. Mainnet has not had a split o
 Still open:
 
 - No xStocks BSC address is confirmed, so none is bundled.
+- A live buy end to end (approve, then swap, from a connected wallet) has not been run yet.
+- The Spread tab has not been viewed against mainnet yet; it uses the same pool reader that Buy runs live.
 - Lista lending (supply-side) and borrowed-bStock positions are read the same way but have not been seen for a real
   address yet; the borrower above posted bStocks as collateral.
 
@@ -435,6 +479,21 @@ title is the dotted name. Every tool is read-only. Each returns a plain-text sta
     -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"sharetrue_explain","arguments":{"ticker":"NVDA"}}}'
   ```
 
+## Demo videos
+
+Both videos are rendered from this repo with Playwright and ffmpeg, so they can be regenerated after a change:
+
+- **Part 1 · Pitch** (`demo/deck/deck.html`, rendered by `npm run demo:deck`): twelve slides, starting with the
+  problem. Mainnet figures on the slides are dated and come from [`docs/DEVEX.md`](docs/DEVEX.md).
+- **Part 2 · Walkthrough** (`npm run demo:walkthrough`): Playwright drives the app on the demo fixture through
+  Portfolio, Ledger and the dividend answer, Spread, a thin-wrapper Buy, Collateral, CSV export and a live MCP call, with
+  a caption bar and a visible cursor. It starts its own demo server; run `npm run build` first.
+
+Each run writes `demo/out/partN-*.mp4` (1920×1080, H.264, with a soft English subtitle track), the same lines as `.srt`,
+and `partN-voiceover.md`: every line with its start time, to read over the video. Frames come from Chrome's screencast
+at their real timing, so animations play at speed. Encoding needs an ffmpeg with libx264 on `PATH` (or set `FFMPEG`),
+and a Chromium that matches `playwright-core` (`npx playwright install chromium`, or set `CHROMIUM_PATH`).
+
 ## Project layout
 
 ```
@@ -451,7 +510,8 @@ api/index.ts    Vercel function wrapping the same Hono app
 verify/evm/     the BEP-677 reference token on a local EVM (npm run verify:evm; own package.json, not deployed)
 web/            React statement UI (Vite)
 test/           vitest suites (units, events/timeline, replay, end-to-end demo scan, API)
-docs/DEVEX.md   developer-experience report
+docs/DEVEX.md   developer-experience fact log
+demo/           pitch deck, recording scripts and the rendered videos (demo/out)
 ```
 
 `npm run check` runs the typecheck, Prettier and the test suite. `npm run verify:evm` installs Hardhat and solc into
