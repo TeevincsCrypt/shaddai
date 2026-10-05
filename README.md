@@ -5,9 +5,9 @@
 Share-true accounting for tokenized stocks on BNB Smart Chain: bStocks, plus the Ondo and xStocks twins where a
 verified contract exists. BSC mainnet, spot only. Built for BNB Hack: Tokenized Stocks Edition.
 
-**Watch:** [Part 1 · Pitch](demo/out/part1-pitch.mp4) (2:50) · [Part 2 · Walkthrough](demo/out/part2-walkthrough.mp4)
-(about 3 min). Both are silent with captions; timed voice-over scripts and subtitle files sit next to them in
-[`demo/out`](demo/out). See [Demo videos](#demo-videos).
+**Watch:** [Part 1 · Pitch](demo/out/part1-pitch.mp4) (3:02) · [Part 2 · Walkthrough](demo/out/part2-walkthrough.mp4)
+(3:58). Both are narrated, with an original backing track and sound effects, and carry an English subtitle track. See
+[Demo videos](#demo-videos).
 
 ## The problem
 
@@ -489,10 +489,22 @@ Both videos are rendered from this repo with Playwright and ffmpeg, so they can 
   Portfolio, Ledger and the dividend answer, Spread, a thin-wrapper Buy, Collateral, CSV export and a live MCP call, with
   a caption bar and a visible cursor. It starts its own demo server; run `npm run build` first.
 
-Each run writes `demo/out/partN-*.mp4` (1920×1080, H.264, with a soft English subtitle track), the same lines as `.srt`,
-and `partN-voiceover.md`: every line with its start time, to read over the video. Frames come from Chrome's screencast
-at their real timing, so animations play at speed. Encoding needs an ffmpeg with libx264 on `PATH` (or set `FFMPEG`),
-and a Chromium that matches `playwright-core` (`npx playwright install chromium`, or set `CHROMIUM_PATH`).
+Each run writes `demo/out/partN-*.mp4`: 1920×1080 H.264, AAC stereo at -16 LUFS, and a soft English subtitle track.
+Next to it: the same lines as `.srt`, and `partN-voiceover.md` with every line and its start time. Frames come from
+Chrome's screencast at their real timing, so animations play at speed.
+
+- **Voice:** [Kokoro](https://github.com/hexgrad/kokoro) (Apache-2.0) through `kokoro-onnx`, offline on CPU, voice
+  `af_heart`. Lines are synthesized before recording, and each slide or caption holds until its line is said. Subtitles
+  keep digits; the voice gets a speakable version ("$295" → "295 dollars", "NVDAB" spelled out).
+- **Music and sound:** an original backing track (four-chord loop: pads, bass, arpeggio, soft drums) and the whooshes,
+  clicks, key taps, pops and chimes are synthesized from sine waves and noise in `demo/audio/soundtrack.py`, so there is
+  nothing to license. The music ducks under the voice.
+
+Setup: ffmpeg with libx264 (`FFMPEG`, default `ffmpeg` on `PATH`); the Chromium build that matches `playwright-core`
+(`npx playwright install chromium`, or `CHROMIUM_PATH`); Python with `pip install kokoro-onnx soundfile numpy`; and
+`kokoro-v1.0.onnx` plus `voices-v1.0.bin` from the
+[kokoro-onnx model release](https://github.com/thewh1teagle/kokoro-onnx/releases/tag/model-files-v1.0) in
+`demo/.models`. `DEMO_VOICE=0` renders without the voice; `KOKORO_VOICE` and `KOKORO_SPEED` change it.
 
 ## Project layout
 

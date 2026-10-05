@@ -14,6 +14,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, type Locator, type Page } from 'playwright-core';
 import { ScreenRecorder, toScript, toSrt } from './lib/recorder.js';
+import { synthesize } from './lib/voice.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
@@ -192,13 +193,55 @@ const d = demo(page);
 const rec = new ScreenRecorder(page, join(out, '.frames-part2'));
 const wait = (s: number) => page.waitForTimeout(s * 1000);
 
+/** Every narrated line, keyed, so the voice can be synthesized before recording starts. */
+const LINES = {
+  intro: 'Part 2: a live walkthrough of Shaddai, recorded on the demo fixture.',
+  start1: 'Paste any BSC address. Shaddai reads the raw balances, then the multiplier your wallet ignores.',
+  start2: 'The landing reads the live multiplier index: the latest changes, and what 100 tokens are in shares.',
+  port1: 'The demo address: NVDAB in the wallet, in Venus and lent on Lista, plus AAPLB, MSFTB, NVDAon and more.',
+  port2: 'Raw is what balanceOf() returns: 10.000000. The multiplier is 1.0017×.',
+  port3: 'So the address owns 10.017 NVIDIA share-equivalents. Shaddai always shows both numbers.',
+  port4: 'XMPLB, a fictional demo stock, split 2-for-1: 30 raw tokens on Lista are 60.24 shares.',
+  ledger1:
+    'The ledger: every multiplier change, with no Transfer event behind any of them. Dividends, a split, one pending.',
+  ledger2: '“Did I get the dividend?” One plain answer: when, the raw it applied to, old → new, and shares gained.',
+  ledger3: 'When nothing touched the holder, it says so. It never invents a dividend.',
+  ledger4:
+    'Each row: raw held at the block before, old → new multiplier, Δ share-equivalents and an estimated USD value.',
+  spread1:
+    'Every NVIDIA wrapper, priced per share. NVDAB’s raw gap is +0.17%: that is the dividend factor. After the multiplier, 0.00%.',
+  spread2:
+    'NVDAon’s pool is thin, under $25k, so NVDAB is the tightest liquid wrapper. Outside US hours, rows say: quote, not a mispricing.',
+  buy1: 'Size the buy in dollars of stock: $50 of NVIDIA.',
+  buy2: 'The thin twin is refused before it is quoted: “NVDAon book is $14k, under the $25k floor.”',
+  buy3: 'NVDAB is quoted in share-equivalents and preselected: the most stock for the money.',
+  buy4: 'Step one is an exact-amount approve, decoded and dry-run before a wallet sees it. In the demo nothing is signed.',
+  coll1: 'Lista counts raw tokens, not shares. MSFTB is posted as collateral, with a multiplier change scheduled.',
+  coll2: 'Three numbers before the flip: the protocol holds 3 raw, 3.000000 shares today, 3.006060 after.',
+  coll3: 'Plus what a share-priced oracle would do to the collateral value. Confirm the oracle before you borrow.',
+  coll4: 'Nothing scheduled for NVDAB in Venus, so it says so, instead of showing a made-up preview.',
+  csv1: 'One click exports the ledger to CSV, the rows a tax tool reading only transfers would never see.',
+  mcp1: 'Agents get the same answers as MCP tools. This is sharetrue.dividend, called on the running server.',
+  outro: 'Your wallet counts tokens. Shaddai counts shares.',
+} as const;
+type Line = keyof typeof LINES;
+const voices = synthesize(
+  Object.entries(LINES).map(([id, text]) => ({ id, text })),
+  join(out, '.voice'),
+);
+
 let step = 0;
 let label = '';
-/** A caption (and subtitle line) held for `seconds`. */
-async function say(text: string, seconds: number) {
+/** Caption, subtitle and voice for one line; held until the line is said (and at least `min` seconds). */
+async function say(key: Line, min = 3) {
+  const text = LINES[key];
+  const clip = voices.get(key);
   await d.call('caption', `${step} / ${STEPS} · ${label}`, text);
-  rec.cue(text, seconds);
-  await wait(seconds);
+  await wait(0.25);
+  const speak = clip?.seconds ?? text.split(/\s+/).length / 2.6;
+  rec.voice(clip);
+  rec.cue(text, speak);
+  await wait(Math.max(min, speak + 0.6));
 }
 /** New chapter: clear the last caption so it does not ride along into the next screen. */
 async function chapter(name: string) {
@@ -221,8 +264,24 @@ async function click(l: Locator) {
   await point(l);
   const c = await centre(l);
   await d.call('ripple', c.x, c.y);
+  rec.sfx('click');
   await l.click();
   await wait(0.5);
+}
+async function type(l: Locator, text: string) {
+  for (const ch of text) {
+    rec.sfx('key');
+    await l.press(ch);
+    await wait(0.17);
+  }
+}
+async function panel(head: string | null, body = '') {
+  if (head !== null) rec.sfx('pop');
+  await d.call('panel', head, body);
+}
+async function title(html: string | null) {
+  rec.sfx(html === null ? 'whoosh' : 'chime');
+  await d.call('title', html);
 }
 async function scrollTo(l: Locator, block: 'start' | 'center' = 'center') {
   await l.evaluate((el, b) => el.scrollIntoView({ behavior: 'smooth', block: b }), block);
@@ -274,63 +333,61 @@ await d.call(
 );
 await wait(0.8);
 await rec.start();
-rec.cue('Part 2: a live walkthrough, recorded on the demo fixture.', 4);
-await wait(4.5);
-await d.call('title', null);
+rec.sfx('rise');
+await wait(0.8);
+rec.sfx('chime');
+await say('intro', 3.5);
+await title(null);
 await wait(0.8);
 
 // 1 · Landing
 await chapter('Start');
 await point(page.locator('.hero-title'), 0.6);
-await say('Paste any BSC address. Shaddai reads the raw balances, then the multiplier your wallet ignores.', 5);
+await say('start1');
 await point(page.locator('.f-feed'), 0.4);
-await say('The landing reads the live multiplier index: the latest changes, and what 100 tokens are in shares.', 5);
+await say('start2');
 await click(page.locator('.top-actions .btn.primary'));
 await page.locator('table.stmt').first().waitFor();
 await wait(1);
 
 // 2 · Portfolio
 await chapter('Portfolio');
-await say('The demo address: NVDAB in the wallet, in Venus and lent on Lista, plus AAPLB, MSFTB, NVDAon and more.', 5);
+await say('port1');
 const gotIt = page.locator('.explainer-card button');
 if (await gotIt.isVisible()) await click(gotIt);
 const nvdab = page.locator('table.stmt tbody tr', { hasText: 'NVDAB' }).first();
 await scrollTo(nvdab);
 await point(nvdab.locator('td').nth(1));
-await say('Raw is what balanceOf() returns: 10.000000. The multiplier is 1.0017×.', 4.5);
+await say('port2');
 await point(nvdab.locator('td').nth(3));
-await say('So the address owns 10.017 NVIDIA share-equivalents. Shaddai always shows both numbers.', 4.5);
+await say('port3');
 const xmpl = page.locator('table.stmt tbody tr', { hasText: 'Lista' }).filter({ hasText: 'XMPLB' }).first();
 await scrollTo(xmpl);
 await point(xmpl);
-await say('XMPLB, a fictional demo stock, split 2-for-1: 30 raw tokens on Lista are 60.24 shares.', 5);
+await say('port4');
 
 // 3 · Ledger + dividend
 await chapter('Ledger');
 await scrollTop();
 await click(tab('Ledger'));
 await page.locator('.dividend-check').waitFor();
-await say(
-  'The ledger: every multiplier change, with no Transfer event behind any of them. Dividends, a split, one pending.',
-  5.5,
-);
+await say('ledger1');
 const select = page.locator('.dividend-ask select');
 await point(select);
 await select.selectOption('AAPL');
 await wait(0.4);
 await click(page.locator('.dividend-ask button'));
 await page.locator('.dividend-answer').waitFor();
-await say('“Did I get the dividend?” One plain answer: when, the raw it applied to, old → new, and shares gained.', 7);
+rec.sfx('pop');
+await say('ledger2', 7);
 await select.selectOption('TSLA');
 await click(page.locator('.dividend-ask button'));
 await page.locator('.dividend-answer', { hasText: 'TSLAB' }).waitFor();
-await say('When nothing touched the holder, it says so. It never invents a dividend.', 4.5);
+rec.sfx('pop');
+await say('ledger3');
 const firstRow = page.locator('table.stmt tbody tr').first();
 await scrollTo(firstRow, 'start');
-await say(
-  'Each row: raw held at the block before, old → new multiplier, Δ share-equivalents and an estimated USD value.',
-  5.5,
-);
+await say('ledger4');
 
 // 4 · Spread
 await chapter('Spread');
@@ -340,16 +397,10 @@ await page.locator('table.stmt tbody tr').first().waitFor();
 await wait(0.6);
 const spreadB = page.locator('table.stmt tbody tr', { hasText: 'NVDAB' }).first();
 await point(spreadB.locator('td').nth(5));
-await say(
-  'Every NVIDIA wrapper, priced per share. NVDAB’s raw gap is +0.17%: that is the dividend factor. After the multiplier, 0.00%.',
-  7,
-);
+await say('spread1', 6);
 const spreadOn = page.locator('table.stmt tbody tr', { hasText: 'NVDAon' }).first();
 await point(spreadOn.locator('.chip').first());
-await say(
-  'NVDAon’s pool is thin, under $25k, so NVDAB is the tightest liquid wrapper. Outside US hours, rows say: quote, not a mispricing.',
-  7,
-);
+await say('spread2', 6);
 
 // 5 · Buy
 await chapter('Buy');
@@ -359,27 +410,26 @@ const usd = page.locator('.buy-form input').first();
 await usd.waitFor();
 await click(usd);
 await usd.fill('');
-await usd.pressSequentially('50', { delay: 160 });
-await say('Size the buy in dollars of stock: $50 of NVIDIA.', 3.5);
+await type(usd, '50');
+await say('buy1');
 await click(page.locator('.buy-form button.btn.primary'));
 await page.locator('table.stmt tbody tr', { hasText: 'NVDAon' }).waitFor();
+rec.sfx('pop');
 await wait(0.6);
 const refused = page.locator('table.stmt tbody tr', { hasText: 'NVDAon' }).first();
 await point(refused.locator('.notes li').first());
-await say('The thin twin is refused before it is quoted: “NVDAon book is $14k, under the $25k floor.”', 6);
+await say('buy2', 5);
 const chosen = page.locator('table.stmt tbody tr', { hasText: 'NVDAB' }).first();
 await point(chosen.locator('td').nth(3));
-await say('NVDAB is quoted in share-equivalents and preselected: the most stock for the money.', 5);
+await say('buy3');
 const approve = page.getByRole('button', { name: 'Preview the approve' });
 await scrollTo(approve);
 await click(approve);
+rec.sfx('pop');
 await wait(1);
 await page.mouse.wheel(0, 360);
 await wait(0.8);
-await say(
-  'Step one is an exact-amount approve, decoded and dry-run before a wallet sees it. In the demo nothing is signed.',
-  6,
-);
+await say('buy4', 5);
 
 // 6 · Collateral
 await chapter('Collateral');
@@ -389,22 +439,16 @@ const msft = page.locator('article.warn', { hasText: 'MSFTB · Lista' }).first()
 await msft.waitFor();
 await scrollTo(msft, 'start');
 await point(msft.locator('.sev'));
-await say(
-  'Lista counts raw tokens, not shares. MSFTB is posted as collateral, with a multiplier change scheduled.',
-  5.5,
-);
+await say('coll1');
 await scrollTo(msft.locator('.flip'));
 await point(msft.locator('.flip-figs > div').nth(2));
-await say('Three numbers before the flip: the protocol holds 3 raw, 3.000000 shares today, 3.006060 after.', 6);
+await say('coll2', 5);
 await point(msft.locator('.flip p'));
-await say(
-  'Plus what a share-priced oracle would do to the collateral value. Confirm the oracle before you borrow.',
-  5.5,
-);
+await say('coll3');
 const venus = page.locator('article.warn', { hasText: 'NVDAB · Venus' }).first();
 await scrollTo(venus.locator('.flip'));
 await point(venus.locator('.flip p'));
-await say('Nothing scheduled for NVDAB in Venus, so it says so, instead of showing a made-up preview.', 4.5);
+await say('coll4');
 
 // 7 · CSV
 await chapter('CSV');
@@ -418,8 +462,8 @@ const file = await download;
 const csv = await page.evaluate(async (u) => (await fetch(u)).text(), (await csvLink.getAttribute('href'))!);
 await file.cancel().catch(() => undefined);
 const table = csvTable(csv, ['date', 'symbol', 'raw_at_event', 'old_mult', 'new_mult', 'delta_share_eq', 'est_usd'], 7);
-await d.call('panel', `shaddai-ledger.csv · ${csv.trim().split('\n').length - 1} rows (key columns)`, table);
-await say('One click exports the ledger to CSV, the rows a tax tool reading only transfers would never see.', 6);
+await panel(`shaddai-ledger.csv · ${csv.trim().split('\n').length - 1} rows (key columns)`, table);
+await say('csv1', 5);
 await d.call('panel', null);
 
 // 8 · MCP
@@ -438,23 +482,24 @@ const mcp = await page.evaluate(async () => {
   const body = (await r.json()) as { result?: { content?: { text?: string }[] } };
   return body.result?.content?.[0]?.text ?? JSON.stringify(body).slice(0, 400);
 });
-await d.call(
-  'panel',
+await panel(
   'POST /api/mcp · tools/call sharetrue_dividend {address: "demo", ticker: "AAPL"}',
   mcp.split('\n').slice(0, 4).join('\n'),
 );
-await say('Agents get the same answers as MCP tools. This is sharetrue.dividend, called on the running server.', 8);
+await say('mcp1', 7);
 await d.call('panel', null);
 await d.call('hideCaption');
 await wait(0.4);
 
-await d.call(
-  'title',
+await title(
   `<img src="/favicon.svg" alt=""><h1><span>Your wallet counts tokens.</span><span class="l2">Shaddai counts shares.</span></h1>
   <p>Spot only · BSC mainnet · your wallet signs · github.com/TeevincsCrypt/shaddai</p>`,
 );
-rec.cue('Your wallet counts tokens. Shaddai counts shares.', 4.5);
-await wait(5);
+await wait(0.6);
+const outro = voices.get('outro');
+rec.voice(outro);
+rec.cue(LINES.outro, outro?.seconds ?? 3);
+await wait(Math.max(4.5, (outro?.seconds ?? 3) + 1.5));
 await rec.stop();
 await browser.close();
 stopServer();
@@ -462,6 +507,9 @@ stopServer();
 const srt = join(out, 'part2-walkthrough.srt');
 writeFileSync(srt, toSrt(rec.cues));
 writeFileSync(join(out, 'part2-voiceover.md'), toScript('Part 2 · Walkthrough — voice-over', rec.cues));
-const total = rec.encode(join(out, 'part2-walkthrough.mp4'), { srt });
-console.log(`part2-walkthrough.mp4: ${total.toFixed(1)} s`);
+const video = join(out, '.part2-video.mp4');
+rec.encode(video, { srt });
+const audio = rec.soundtrack(join(out, '.part2-audio.wav'), 'walkthrough');
+rec.mux(video, audio, join(out, 'part2-walkthrough.mp4'));
+console.log(`part2-walkthrough.mp4: ${rec.duration.toFixed(1)} s`);
 process.exit(0);

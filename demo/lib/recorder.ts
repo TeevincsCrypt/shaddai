@@ -6,10 +6,15 @@
  */
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { CDPSession, Page } from 'playwright-core';
+import type { VoiceClip } from './voice.js';
 
 export const FFMPEG = process.env.FFMPEG ?? 'ffmpeg';
+const AUDIO_SCRIPT = join(dirname(fileURLToPath(import.meta.url)), '..', 'audio', 'soundtrack.py');
+
+export type Sfx = 'whoosh' | 'rise' | 'click' | 'key' | 'pop' | 'chime';
 
 export interface Cue {
   start: number;
@@ -23,7 +28,10 @@ export class ScreenRecorder {
   private t0 = 0;
   private tEnd = 0;
   private n = 0;
-  readonly cues: Cue[] = [];
+  /** Wall-clock times (seconds); converted to video time once the first frame is known. */
+  private cueLog: { wall: number; seconds: number; text: string }[] = [];
+  private sfxLog: { wall: number; kind: Sfx }[] = [];
+  private voiceLog: { wall: number; file: string }[] = [];
 
   constructor(
     private readonly page: Page,
@@ -56,10 +64,62 @@ export class ScreenRecorder {
     });
   }
 
-  /** A subtitle line from now for `seconds` (or until the next cue). */
+  /** A subtitle line from now for `seconds`. */
   cue(text: string, seconds: number) {
-    const start = this.now();
-    this.cues.push({ start, end: start + seconds, text });
+    this.cueLog.push({ wall: Date.now() / 1000, seconds, text });
+  }
+
+  /** A sound effect at this moment. */
+  sfx(kind: Sfx) {
+    this.sfxLog.push({ wall: Date.now() / 1000, kind });
+  }
+
+  /** A voice-over clip starting now. */
+  voice(clip: VoiceClip | undefined) {
+    if (clip) this.voiceLog.push({ wall: Date.now() / 1000, file: clip.file });
+  }
+
+  private get origin() {
+    return this.frames[0]?.t ?? this.t0;
+  }
+
+  /** Subtitle cues on the video's timeline. */
+  get cues(): Cue[] {
+    return this.cueLog.map((c) => ({
+      start: c.wall - this.origin,
+      end: c.wall - this.origin + c.seconds,
+      text: c.text,
+    }));
+  }
+
+  get duration() {
+    return this.tEnd - this.origin;
+  }
+
+  /** Renders music, sound effects and voice for the recorded timeline (demo/audio/soundtrack.py). */
+  soundtrack(out: string, style: 'pitch' | 'walkthrough'): string {
+    const job = join(this.dir, 'timeline.json');
+    writeFileSync(
+      job,
+      JSON.stringify({
+        duration: this.duration,
+        style,
+        voice: this.voiceLog.map((v) => ({ file: v.file, start: Math.max(0, v.wall - this.origin) })),
+        sfx: this.sfxLog.map((e) => ({ kind: e.kind, t: Math.max(0, e.wall - this.origin) })),
+      }),
+    );
+    const r = spawnSync(process.env.PYTHON ?? 'python3', [AUDIO_SCRIPT, job, out], { stdio: 'inherit' });
+    if (r.status !== 0) throw new Error('soundtrack failed: pip install numpy soundfile');
+    return out;
+  }
+
+  /** Puts the soundtrack under the video (loudness-normalized to -16 LUFS), keeping the subtitle track. */
+  mux(video: string, audio: string, out: string) {
+    const args = ['-y', '-loglevel', 'error', '-i', video, '-i', audio, '-map', '0:v', '-map', '0:s?', '-map', '1:a'];
+    args.push('-c:v', 'copy', '-c:s', 'copy', '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11', '-c:a', 'aac', '-b:a', '192k');
+    args.push('-ar', '48000', '-metadata:s:a:0', 'language=eng', '-movflags', '+faststart', out);
+    const r = spawnSync(FFMPEG, args, { stdio: 'inherit' });
+    if (r.status !== 0) throw new Error(`ffmpeg mux failed (${r.status})`);
   }
 
   async stop() {

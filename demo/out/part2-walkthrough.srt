@@ -1,95 +1,95 @@
 1
-00:00:00,002 --> 00:00:04,002
-Part 2: a live walkthrough, recorded on the demo fixture.
+00:00:01,039 --> 00:00:05,177
+Part 2: a live walkthrough of Shaddai, recorded on the demo fixture.
 
 2
-00:00:06,023 --> 00:00:11,023
+00:00:07,582 --> 00:00:13,619
 Paste any BSC address. Shaddai reads the raw balances, then the multiplier your wallet ignores.
 
 3
-00:00:11,481 --> 00:00:16,481
+00:00:14,919 --> 00:00:21,681
 The landing reads the live multiplier index: the latest changes, and what 100 tokens are in shares.
 
 4
-00:00:19,006 --> 00:00:24,006
+00:00:25,088 --> 00:00:34,624
 The demo address: NVDAB in the wallet, in Venus and lent on Lista, plus AAPLB, MSFTB, NVDAon and more.
 
 5
-00:00:27,595 --> 00:00:32,095
+00:00:39,050 --> 00:00:44,810
 Raw is what balanceOf() returns: 10.000000. The multiplier is 1.0017×.
 
 6
-00:00:33,025 --> 00:00:37,525
+00:00:46,598 --> 00:00:53,488
 So the address owns 10.017 NVIDIA share-equivalents. Shaddai always shows both numbers.
 
 7
-00:00:39,578 --> 00:00:44,578
+00:00:56,396 --> 00:01:04,652
 XMPLB, a fictional demo stock, split 2-for-1: 30 raw tokens on Lista are 60.24 shares.
 
 8
-00:00:47,029 --> 00:00:52,529
+00:01:07,946 --> 00:01:15,263
 The ledger: every multiplier change, with no Transfer event behind any of them. Dividends, a split, one pending.
 
 9
-00:00:55,401 --> 00:01:02,401
+00:01:18,959 --> 00:01:24,932
 “Did I get the dividend?” One plain answer: when, the raw it applied to, old → new, and shares gained.
 
 10
-00:01:03,982 --> 00:01:08,482
+00:01:27,772 --> 00:01:31,718
 When nothing touched the holder, it says so. It never invents a dividend.
 
 11
-00:01:09,595 --> 00:01:15,095
+00:01:33,710 --> 00:01:41,475
 Each row: raw held at the block before, old → new multiplier, Δ share-equivalents and an estimated USD value.
 
 12
-00:01:19,060 --> 00:01:26,060
+00:01:46,289 --> 00:01:57,809
 Every NVIDIA wrapper, priced per share. NVDAB’s raw gap is +0.17%: that is the dividend factor. After the multiplier, 0.00%.
 
 13
-00:01:26,988 --> 00:01:33,988
+00:01:59,599 --> 00:02:11,460
 NVDAon’s pool is thin, under $25k, so NVDAB is the tightest liquid wrapper. Outside US hours, rows say: quote, not a mispricing.
 
 14
-00:01:38,264 --> 00:01:41,764
+00:02:16,735 --> 00:02:20,425
 Size the buy in dollars of stock: $50 of NVIDIA.
 
 15
-00:01:44,805 --> 00:01:50,805
+00:02:24,306 --> 00:02:33,223
 The thin twin is refused before it is quoted: “NVDAon book is $14k, under the $25k floor.”
 
 16
-00:01:51,738 --> 00:01:56,738
+00:02:35,010 --> 00:02:40,492
 NVDAB is quoted in share-equivalents and preselected: the most stock for the money.
 
 17
-00:02:01,182 --> 00:02:07,182
+00:02:45,773 --> 00:02:52,834
 Step one is an exact-amount approve, decoded and dry-run before a wallet sees it. In the demo nothing is signed.
 
 18
-00:02:11,655 --> 00:02:17,155
+00:02:58,174 --> 00:03:05,960
 Lista counts raw tokens, not shares. MSFTB is posted as collateral, with a multiplier change scheduled.
 
 19
-00:02:19,204 --> 00:02:25,204
+00:03:08,860 --> 00:03:16,625
 Three numbers before the flip: the protocol holds 3 raw, 3.000000 shares today, 3.006060 after.
 
 20
-00:02:26,139 --> 00:02:31,639
+00:03:18,403 --> 00:03:24,163
 Plus what a share-priced oracle would do to the collateral value. Confirm the oracle before you borrow.
 
 21
-00:02:33,690 --> 00:02:38,190
+00:03:27,055 --> 00:03:33,199
 Nothing scheduled for NVDAB in Venus, so it says so, instead of showing a made-up preview.
 
 22
-00:02:42,248 --> 00:02:48,248
+00:03:38,230 --> 00:03:44,480
 One click exports the ledger to CSV, the rows a tax tool reading only transfers would never see.
 
 23
-00:02:48,344 --> 00:02:56,344
+00:03:45,458 --> 00:03:52,135
 Agents get the same answers as MCP tools. This is sharetrue.dividend, called on the running server.
 
 24
-00:02:56,757 --> 00:03:01,257
+00:03:53,745 --> 00:03:56,667
 Your wallet counts tokens. Shaddai counts shares.
