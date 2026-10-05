@@ -381,8 +381,10 @@ cheapest raw token. Nothing here trades.
 > export that only reads transfers will miss this.
 
 If no multiplier change for that ticker touched the address, it says "No multiplier change found for this holder." If
-the address held none at the event block, it says that too. If the balance at the block could not be read, it says it
-was not read instead of guessing. Splits get no USD figure. The withholding line is a note, not tax advice. Wrappers
+the address held none at the event block, it says that too. If its wallet held none but it holds the token through
+Venus, Lista or an LP today, it does not call that a miss: protocol positions are not read at past blocks, so it says
+so and gives what the change would have added if that position was in. If the balance at the block could not be read,
+it says it was not read instead of guessing. Splits get no USD figure. The withholding line is a note, not tax advice. Wrappers
 the address has since sold are still checked. No orders, no strategy, no loop.
 
 ## Pre-action preview
