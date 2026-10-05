@@ -1,0 +1,857 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>Shaddai pitch</title>
+    <!--
+      Part 1 of the demo: a 1920×1080 deck. demo/render-deck.ts plays it slide by slide
+      (show(n)) and records it. Each <section> carries its on-screen time (data-seconds)
+      and its voice-over line (data-say), which also become the subtitle track.
+      Figures are from BSC mainnet reads logged in docs/DEVEX.md (dates noted on the slides).
+    -->
+    <style>
+      @font-face {
+        font-family: 'Figtree';
+        src: url('../../node_modules/@fontsource-variable/figtree/files/figtree-latin-wght-normal.woff2')
+          format('woff2-variations');
+        font-weight: 300 900;
+      }
+      @font-face {
+        font-family: 'Plex Mono';
+        src: url('../../node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-500-normal.woff2')
+          format('woff2');
+        font-weight: 500;
+      }
+      @font-face {
+        font-family: 'Plex Mono';
+        src: url('../../node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-400-normal.woff2')
+          format('woff2');
+        font-weight: 400;
+      }
+      :root {
+        --canvas: #eef0f3;
+        --paper: #f6f7f9;
+        --sheet: #ffffff;
+        --ink: #0f1720;
+        --ink-2: #344054;
+        --muted: #667085;
+        --faint: #98a2b3;
+        --rule: #e4e7ec;
+        --accent: #1570e6;
+        --accent-soft: #e8f1fd;
+        --brand: #2a9ffe;
+        --l2: #9aa1ac;
+        --alert: #d92d20;
+        --alert-soft: #fdecea;
+        --watch: #b54708;
+        --watch-soft: #fef3e2;
+        --ok: #067647;
+        --ok-soft: #e7f6ee;
+        --dot: #cfd5dd;
+        --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 12px 32px -8px rgba(16, 24, 40, 0.14);
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background-color: var(--canvas);
+        background-image: radial-gradient(var(--dot) 1.2px, transparent 1.5px);
+        background-size: 22px 22px;
+        color: var(--ink);
+        font-family: 'Figtree', system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .mono {
+        font-family: 'Plex Mono', ui-monospace, monospace;
+        font-variant-numeric: tabular-nums;
+      }
+      section {
+        position: absolute;
+        inset: 0;
+        padding: 130px 128px 110px;
+        display: none;
+        flex-direction: column;
+        justify-content: center;
+        gap: 44px;
+      }
+      section.on,
+      section.leaving {
+        display: flex;
+      }
+      section.leaving {
+        animation: leave 0.4s ease forwards;
+      }
+      @keyframes leave {
+        to {
+          opacity: 0;
+          transform: translateY(-14px);
+        }
+      }
+      .chrome {
+        position: absolute;
+        left: 128px;
+        right: 128px;
+        top: 40px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 22px;
+        color: var(--muted);
+      }
+      .chrome .brand {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        font-weight: 650;
+        color: var(--ink);
+        font-size: 26px;
+      }
+      .chrome .brand img {
+        width: 36px;
+      }
+      .foot {
+        position: absolute;
+        left: 128px;
+        right: 128px;
+        bottom: 40px;
+        display: flex;
+        justify-content: space-between;
+        font-size: 19px;
+        color: var(--faint);
+      }
+      .kicker {
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-bottom: -16px;
+      }
+      .kicker.problem {
+        color: var(--alert);
+      }
+      h1 {
+        font-size: 84px;
+        line-height: 1.04;
+        letter-spacing: -0.04em;
+        font-weight: 650;
+        max-width: 1664px;
+      }
+      h1 span {
+        display: block;
+      }
+      h1 .l2 {
+        color: var(--l2);
+      }
+      .lead {
+        font-size: 32px;
+        line-height: 1.4;
+        color: var(--ink-2);
+        max-width: 1400px;
+      }
+      .note {
+        font-size: 22px;
+        line-height: 1.45;
+        color: var(--muted);
+        max-width: 1500px;
+      }
+      .row {
+        display: flex;
+        gap: 32px;
+        align-items: stretch;
+      }
+      .card {
+        background: var(--sheet);
+        border: 1px solid var(--rule);
+        border-radius: 28px;
+        box-shadow: var(--shadow);
+        padding: 36px 40px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        flex: 1;
+      }
+      .card .label {
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .big {
+        font-size: 76px;
+        font-weight: 500;
+        letter-spacing: -0.02em;
+        line-height: 1.05;
+      }
+      .raw {
+        color: var(--faint);
+      }
+      .blue {
+        color: var(--accent);
+      }
+      .red {
+        color: var(--alert);
+      }
+      .green {
+        color: var(--ok);
+      }
+      .sub {
+        font-size: 24px;
+        color: var(--muted);
+      }
+      .arrow {
+        align-self: center;
+        font-size: 64px;
+        color: var(--faint);
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 20px;
+        font-weight: 650;
+        padding: 6px 16px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        align-self: flex-start;
+        white-space: nowrap;
+        flex: none;
+      }
+      .pill.red {
+        background: var(--alert-soft);
+        color: var(--alert);
+      }
+      .pill.watch {
+        background: var(--watch-soft);
+        color: var(--watch);
+      }
+      .pill.green {
+        background: var(--ok-soft);
+        color: var(--ok);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: var(--sheet);
+        border-radius: 28px;
+        overflow: hidden;
+        box-shadow: var(--shadow);
+        font-size: 28px;
+      }
+      th {
+        text-align: left;
+        font-size: 18px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted);
+        background: var(--paper);
+        padding: 22px 32px;
+      }
+      td {
+        padding: 24px 32px;
+        border-top: 1px solid var(--rule);
+        vertical-align: top;
+      }
+      td.num,
+      th.num {
+        text-align: right;
+      }
+      .grid3 {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 28px;
+      }
+      .grid2 {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 28px;
+      }
+      .feat {
+        background: var(--sheet);
+        border: 1px solid var(--rule);
+        border-radius: 24px;
+        box-shadow: var(--shadow);
+        padding: 30px 32px;
+        display: grid;
+        gap: 10px;
+        align-content: start;
+      }
+      .feat h3 {
+        font-size: 32px;
+        letter-spacing: -0.02em;
+      }
+      .feat p {
+        font-size: 23px;
+        line-height: 1.4;
+        color: var(--ink-2);
+      }
+      .feat .n {
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        display: grid;
+        place-items: center;
+        font-weight: 700;
+        font-size: 24px;
+      }
+      .flow {
+        display: grid;
+        grid-template-columns: 1.15fr auto 1fr auto 0.9fr;
+        gap: 28px;
+        align-items: center;
+      }
+      .flow .col {
+        display: grid;
+        gap: 18px;
+      }
+      .src {
+        background: var(--sheet);
+        border: 1px solid var(--rule);
+        border-radius: 20px;
+        padding: 20px 26px;
+        box-shadow: var(--shadow);
+        font-size: 23px;
+        line-height: 1.35;
+      }
+      .src b {
+        display: block;
+        font-size: 25px;
+        margin-bottom: 4px;
+      }
+      .src .mono {
+        font-size: 19px;
+        color: var(--muted);
+      }
+      .core {
+        background: linear-gradient(160deg, #1673c4, #2fa4ff);
+        color: #fff;
+        border-radius: 28px;
+        padding: 40px 36px;
+        box-shadow: 0 20px 48px -12px rgba(21, 112, 230, 0.45);
+        display: grid;
+        gap: 18px;
+        font-size: 25px;
+        line-height: 1.4;
+      }
+      .core h3 {
+        font-size: 40px;
+        display: flex;
+        gap: 14px;
+        align-items: center;
+      }
+      .core h3 img {
+        width: 52px;
+        background: #fff;
+        border-radius: 14px;
+        padding: 6px;
+      }
+      .chev {
+        font-size: 56px;
+        color: var(--faint);
+      }
+      .fact {
+        display: grid;
+        grid-template-columns: 340px 1fr;
+        gap: 28px;
+        align-items: baseline;
+        padding: 22px 0;
+        border-top: 1px solid var(--rule);
+        font-size: 28px;
+      }
+      .fact:first-child {
+        border-top: 0;
+      }
+      .fact .k {
+        font-weight: 650;
+      }
+      .fact .v {
+        color: var(--ink-2);
+        line-height: 1.4;
+      }
+      .quote {
+        background: var(--sheet);
+        border-left: 8px solid var(--accent);
+        border-radius: 20px;
+        padding: 30px 36px;
+        font-size: 28px;
+        line-height: 1.5;
+        box-shadow: var(--shadow);
+        color: var(--ink-2);
+      }
+      .checks {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 20px 48px;
+        font-size: 28px;
+        line-height: 1.35;
+      }
+      .checks div {
+        display: flex;
+        gap: 16px;
+      }
+      .checks div::before {
+        content: '';
+        flex: 0 0 30px;
+        height: 30px;
+        margin-top: 3px;
+        border-radius: 9px;
+        background: var(--accent)
+          url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E")
+          center / 20px no-repeat;
+      }
+      .hero {
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 36px;
+      }
+      .hero h1 {
+        font-size: 120px;
+      }
+      .hero .tile {
+        width: 150px;
+        height: 150px;
+        border-radius: 40px;
+        background: var(--sheet);
+        box-shadow: var(--shadow);
+        display: grid;
+        place-items: center;
+      }
+      .hero .tile img {
+        width: 96px;
+      }
+      /* Entrance: each .in child rises in, staggered by --i. */
+      section.on .in {
+        opacity: 0;
+        transform: translateY(26px);
+        animation: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+        animation-delay: calc(0.15s + var(--i, 0) * 0.22s);
+      }
+      @keyframes rise {
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- 1 · Problem: wallets -->
+    <section
+      data-seconds="18"
+      data-say="Tokenized stocks pay dividends in a way wallets can't see. On September 10, NVDAB's multiplier rose to 1.000778. No token was sent. The wallet still shows 10 tokens. The holder owns 10.0078 shares."
+    >
+      <div class="kicker problem in">The problem · 1 of 4</div>
+      <h1 class="in" style="--i: 1">
+        <span>Tokenized stocks pay dividends in multipliers.</span><span class="l2">Wallets don't read them.</span>
+      </h1>
+      <div class="row in" style="--i: 2">
+        <div class="card">
+          <div class="label">What the wallet shows · balanceOf()</div>
+          <div class="big mono raw">10.000000</div>
+          <div class="sub">NVDAB tokens. Unchanged.</div>
+        </div>
+        <div class="arrow">≠</div>
+        <div class="card">
+          <div class="label">What the holder owns · raw × uiMultiplier</div>
+          <div class="big mono">10.007782</div>
+          <div class="sub">NVIDIA share-equivalents</div>
+        </div>
+      </div>
+      <p class="note in" style="--i: 3">
+        BSC mainnet: NVDAB's <span class="mono">uiMultiplier()</span> went 1.000000 → 1.000778 on 10 Sep 2026 (block
+        120,970,451). The raw balance did not move and no token was sent.
+      </p>
+    </section>
+
+    <!-- 2 · Problem: income with no Transfer -->
+    <section
+      data-seconds="12"
+      data-say="That dividend is income, but no Transfer event records it. Tax tools see nothing, and no wallet can answer: did I get the dividend?"
+    >
+      <div class="kicker problem in">The problem · 2 of 4</div>
+      <h1 class="in" style="--i: 1">
+        <span>The dividend is real income.</span><span class="l2">No Transfer event says so.</span>
+      </h1>
+      <div class="row in" style="--i: 2">
+        <div class="card">
+          <div class="label">On chain, 10 Sep 2026</div>
+          <div class="mono" style="font-size: 27px; line-height: 1.6">UIMultiplierUpdated<br />1.000000 → 1.000778</div>
+          <div style="font-size: 30px">Transfer events to the holder: <b class="red">0</b></div>
+        </div>
+        <div class="card">
+          <div class="label">What a tax export sees</div>
+          <div style="font-size: 34px; line-height: 1.45">
+            Nothing happened.<br /><span class="raw">Cost basis never moves.</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="label">What the holder asks</div>
+          <div style="font-size: 34px; line-height: 1.45">
+            “Did I get the dividend?”<br /><span class="raw">No wallet can answer.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3 · Problem: lending counts raw -->
+    <section
+      data-seconds="16"
+      data-say="Lending protocols count raw tokens. This Lista borrower posted 899.87 NVDAB, worth 900.57 shares. If Lista's oracle prices per share, that's about $295 undercounted today. After a 2-for-1 split, half."
+    >
+      <div class="kicker problem in">The problem · 3 of 4</div>
+      <h1 class="in" style="--i: 1">
+        <span>Collateral is counted in tokens.</span><span class="l2">Value is in shares.</span>
+      </h1>
+      <div class="row in" style="--i: 2">
+        <div class="card">
+          <div class="label">Lista borrower 0x1542…2972 · NVDAB posted</div>
+          <div class="big mono raw">899.87 <span style="font-size: 32px">raw</span></div>
+          <div class="sub">What Lista reads (ERC-20 balance). Binance's DeFi API reports the same raw count.</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="card">
+          <div class="label">Share-equivalents</div>
+          <div class="big mono">900.57</div>
+          <div class="sub">raw × 1.000778. Same tokens, more stock.</div>
+        </div>
+      </div>
+      <div class="row in" style="--i: 3">
+        <div class="card" style="flex-direction: row; align-items: center; gap: 28px">
+          <span class="pill watch">If the oracle is share-priced</span>
+          <span style="font-size: 30px"
+            >this borrower's 5 Lista positions are undercounted by <b>about $295</b> today.</span
+          >
+        </div>
+        <div class="card" style="flex-direction: row; align-items: center; gap: 28px">
+          <span class="pill red">After a 2-for-1 split</span>
+          <span style="font-size: 30px">a raw count at a per-share price would show <b>half</b> the value.</span>
+        </div>
+      </div>
+      <p class="note in" style="--i: 4">
+        Mainnet read, 5 Oct 2026. Lista does not publish its oracle's basis, so Shaddai shows both cases.
+      </p>
+    </section>
+
+    <!-- 4 · Problem: twins -->
+    <section
+      data-seconds="18"
+      data-say="NVIDIA has two tokens on BSC. NVDAB has a $3.8 million pool. NVDAon has under $10,000. A raw price gap can just be a dividend. And for $25, GOOGLB bought 0.9% more Alphabet than GOOGLon."
+    >
+      <div class="kicker problem in">The problem · 4 of 4</div>
+      <h1 class="in" style="--i: 1">
+        <span>Two tokens, one stock.</span><span class="l2">The cheaper token isn't always more stock.</span>
+      </h1>
+      <table class="in" style="--i: 2">
+        <thead>
+          <tr>
+            <th>NVIDIA on BSC</th>
+            <th>Share factor</th>
+            <th class="num">Deepest USDT pool</th>
+            <th class="num">1% depth</th>
+            <th>$10 buy, 5 Oct 2026</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>NVDAB</b> <span class="sub">bStocks</span></td>
+            <td class="mono">uiMultiplier 1.000778</td>
+            <td class="num mono">$3.84M</td>
+            <td class="num mono">≈ $410k</td>
+            <td><span class="pill green">Quoted</span></td>
+          </tr>
+          <tr>
+            <td><b>NVDAon</b> <span class="sub">Ondo</span></td>
+            <td class="mono">sValue 1.001715</td>
+            <td class="num mono red">$9.7k</td>
+            <td class="num mono red">$362</td>
+            <td><span class="pill red">Too thin</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="row in" style="--i: 3">
+        <div class="card" style="flex-direction: row; align-items: center; gap: 24px">
+          <span class="pill">A raw gap can be a dividend</span>
+          <span style="font-size: 28px">Prices only compare after the multiplier.</span>
+        </div>
+        <div class="card" style="flex-direction: row; align-items: center; gap: 24px">
+          <span class="pill">$25 of GOOGL</span>
+          <span style="font-size: 28px">GOOGLB bought <b>0.9% more</b> shares than GOOGLon.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5 · Summary of the problem -->
+    <section
+      data-seconds="12"
+      data-say="Same holding, four answers. Binance multiplies, wallets don't, lenders price raw tokens, and tax software sees nothing."
+    >
+      <div class="kicker problem in">The problem, in one table</div>
+      <h1 class="in" style="--i: 1">
+        <span>One holding. Four different answers.</span><span class="l2">Nobody agrees on what you own.</span>
+      </h1>
+      <table class="in" style="--i: 2">
+        <thead>
+          <tr>
+            <th>Surface</th>
+            <th>What it reads</th>
+            <th>What the holder concludes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>Binance, BscScan</b> (ERC-8056 view)</td>
+            <td class="mono">raw × uiMultiplier</td>
+            <td>“I have 10.0078 NVIDIA.”</td>
+          </tr>
+          <tr>
+            <td><b>Most wallets</b></td>
+            <td class="mono">balanceOf()</td>
+            <td>“I have 10.000 tokens. Did I miss the dividend?”</td>
+          </tr>
+          <tr>
+            <td><b>Venus, Lista</b></td>
+            <td class="mono">balanceOf + oracle price</td>
+            <td>Collateral may not match shares after a split.</td>
+          </tr>
+          <tr>
+            <td><b>Crypto tax software</b></td>
+            <td class="mono">Transfer events</td>
+            <td>“Nothing happened.” Basis never moves.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 6 · Solution -->
+    <section
+      class="hero"
+      data-seconds="11"
+      data-say="Shaddai is share-true accounting for tokenized stocks on BSC. Store raw, show share-equivalents, and if a factor can't be read, say unread. Never assume one."
+    >
+      <div class="tile in"><img src="../../web/public/favicon.svg" alt="" /></div>
+      <h1 class="in" style="--i: 1">
+        <span>Your wallet counts tokens.</span><span class="l2">Shaddai counts shares.</span>
+      </h1>
+      <p class="lead in" style="--i: 2">
+        Share-true accounting for tokenized stocks on BSC: bStocks, plus the Ondo and xStocks twins where a verified
+        contract exists.
+      </p>
+      <div class="row in" style="--i: 3; gap: 20px">
+        <span class="pill">Store raw. Display share-equivalents.</span>
+        <span class="pill watch">A factor that can't be read shows “unread”, never 1.0</span>
+      </div>
+    </section>
+
+    <!-- 7 · Product -->
+    <section
+      data-seconds="16"
+      data-say="From one address: a share-true portfolio, a corporate-action ledger with CSV, collateral warnings with a pre-split preview, a direct dividend answer, a per-share wrapper spread, and a buy sized in dollars of stock."
+    >
+      <div class="kicker in">The product</div>
+      <h1 class="in" style="--i: 1">
+        <span>Six answers from one address.</span><span class="l2">Five read. One acts, with your signature.</span>
+      </h1>
+      <div class="grid3 in" style="--i: 2">
+        <div class="feat">
+          <div class="n">1</div>
+          <h3>Portfolio</h3>
+          <p>Raw tokens and share-equivalents side by side: wallet, Venus, Lista and LP positions.</p>
+        </div>
+        <div class="feat">
+          <div class="n">2</div>
+          <h3>Ledger + CSV</h3>
+          <p>Every multiplier change: raw at the block before, old → new, Δ shares, estimated USD.</p>
+        </div>
+        <div class="feat">
+          <div class="n">3</div>
+          <h3>Collateral</h3>
+          <p>Info / Watch / Alert, plus the next multiplier change: raw held, shares now, shares after.</p>
+        </div>
+        <div class="feat">
+          <div class="n">4</div>
+          <h3>Did I get the dividend?</h3>
+          <p>One plain-English answer from the ledger. Says so when nothing touched you.</p>
+        </div>
+        <div class="feat">
+          <div class="n">5</div>
+          <h3>Spread</h3>
+          <p>Every twin priced per share, after the multiplier. Market closed? “Quote, not a mispricing.”</p>
+        </div>
+        <div class="feat">
+          <div class="n">6</div>
+          <h3>Share-true Buy</h3>
+          <p>Size in dollars of stock. Thin twins are refused. Your wallet approves and signs.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8 · How it reads the chain -->
+    <section
+      data-seconds="16"
+      data-say="It reads the BEP-677 multiplier and its schedule, Ondo's sValue oracle, Venus, Lista and PancakeSwap, and the Binance Web3 API. Out come the app, a CSV, and MCP tools."
+    >
+      <div class="kicker in">How it works</div>
+      <h1 class="in" style="--i: 1"><span>Read the chain, not the label.</span></h1>
+      <div class="flow in" style="--i: 2">
+        <div class="col">
+          <div class="src">
+            <b>bStocks · BEP-677 / ERC-8056</b
+            ><span class="mono">uiMultiplier · newUIMultiplier · effectiveAt · UIMultiplierUpdated</span>
+          </div>
+          <div class="src"><b>Ondo</b><span class="mono">SyntheticSharesOracle.getSValue() · found on chain</span></div>
+          <div class="src">
+            <b>Venus · Lista · PancakeSwap V2/V3</b
+            ><span class="mono">vTokens · Moolah positions · reserves · slot0 · QuoterV2</span>
+          </div>
+          <div class="src">
+            <b>Binance Web3 API</b><span class="mono">RWA data · quotes · DeFi positions · tx simulation</span>
+          </div>
+        </div>
+        <div class="chev">›</div>
+        <div class="core">
+          <h3><img src="../../web/public/favicon.svg" alt="" />Shaddai core</h3>
+          <div>UI = raw × multiplier / 1e18</div>
+          <div>UI price = raw price × 1e18 / multiplier</div>
+          <div>Store and swap raw. Display and compare share-equivalents.</div>
+        </div>
+        <div class="chev">›</div>
+        <div class="col">
+          <div class="src"><b>Web app</b>Portfolio · Ledger · Collateral · Spread · Buy</div>
+          <div class="src"><b>CSV</b>date, block, raw_at_event, old/new mult, Δ share-eq</div>
+          <div class="src"><b>MCP tools</b>Streamable HTTP + stdio</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 9 · Measured on mainnet -->
+    <section
+      data-seconds="15"
+      data-say="All measured on BSC mainnet: real multipliers, a real Lista borrower, live Binance quotes, and a thin Ondo twin refused before quoting."
+    >
+      <div class="kicker in">Measured on BSC mainnet</div>
+      <h1 class="in" style="--i: 1"><span>Not a mock-up.</span><span class="l2">Live reads, dated.</span></h1>
+      <div class="card in" style="--i: 2; gap: 0; padding: 18px 44px">
+        <div class="fact">
+          <span class="k">NVDAB multiplier</span
+          ><span class="v mono">1.000000 → 1.000778 · 10 Sep 2026 · block 120,970,451</span>
+        </div>
+        <div class="fact">
+          <span class="k">NVDAon sValue</span
+          ><span class="v mono">1.000932 → 1.001715 · 28 Sep 2026 · Ondo oracle, no token event</span>
+        </div>
+        <div class="fact">
+          <span class="k">Lista borrower</span
+          ><span class="v">899.87 NVDAB raw = 900.57 share-eq. Binance DeFi API reports raw.</span>
+        </div>
+        <div class="fact">
+          <span class="k">Buy, $10 of NVDA</span
+          ><span class="v">NVDAB quoted (LiquidMesh swap). NVDAon refused: “book is $9.7k, under the $25k floor.”</span>
+        </div>
+        <div class="fact">
+          <span class="k">Buy, $25 of GOOGL</span
+          ><span class="v">GOOGLB 0.071070 vs GOOGLon 0.070409 share-eq: 0.9% more stock.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 10 · Agents -->
+    <section
+      data-seconds="14"
+      data-say="Agents get the same answers as MCP tools. An agent that calls balanceOf reports tokens as shares. One that calls sharetrue dividend gets it right."
+    >
+      <div class="kicker in">For agents</div>
+      <h1 class="in" style="--i: 1"><span>The same answers, as MCP tools.</span></h1>
+      <div class="row in" style="--i: 2; gap: 14px; flex-wrap: wrap">
+        <span class="pill mono">sharetrue.portfolio</span><span class="pill mono">sharetrue.ledger</span
+        ><span class="pill mono">sharetrue.collateral</span><span class="pill mono">sharetrue.dividend</span
+        ><span class="pill mono">sharetrue.explain</span><span class="pill mono">sharetrue.quoteBuy</span>
+      </div>
+      <div class="quote in" style="--i: 3">
+        <div class="mono" style="font-size: 20px; color: var(--muted); margin-bottom: 10px">
+          sharetrue.dividend(“demo”, “AAPL”)
+        </div>
+        AAPLB paid on 14 Aug 2026, block 70548000. Raw stayed 10.000000. Multiplier went 1.0000× → 1.000604×. You gained
+        0.006040 Apple-equivalents, about $1.38 at today's price, after typical 30% US withholding. No Transfer event. A
+        tax export that only reads transfers will miss this.
+      </div>
+      <p class="note in" style="--i: 4">Demo fixture figures. Read-only tools; the buy tool quotes, it never trades.</p>
+    </section>
+
+    <!-- 11 · Guardrails -->
+    <section
+      data-seconds="13"
+      data-say="Spot only, BSC only. Your wallet signs. Unread factors, halted markets and thin books are refused, not guessed."
+    >
+      <div class="kicker in">Guardrails</div>
+      <h1 class="in" style="--i: 1"><span>Refuse rather than guess.</span></h1>
+      <div class="checks in" style="--i: 2">
+        <div>Spot only, BSC mainnet only. No perps, no other chains.</div>
+        <div>Your wallet signs. Shaddai never holds funds or keys.</div>
+        <div>Unread multiplier or sValue: no share-eq price, no quote.</div>
+        <div>Thin twin refused: pool under $25k, or 1% depth below the ticket.</div>
+        <div>Approve calldata decoded and dry-run before your wallet sees it.</div>
+        <div>Halted market or Ondo oracle pause: refused, with the reason.</div>
+        <div>142 tests, and the BEP-677 reference contract run on a local EVM.</div>
+        <div>No contract address invented. Not tax, legal or investment advice.</div>
+      </div>
+    </section>
+
+    <!-- 12 · Close -->
+    <section
+      class="hero"
+      data-seconds="8"
+      data-say="Your wallet counts tokens. Shaddai counts shares. Part two: the walkthrough."
+    >
+      <div class="tile in"><img src="../../web/public/favicon.svg" alt="" /></div>
+      <h1 class="in" style="--i: 1">
+        <span>Your wallet counts tokens.</span><span class="l2">Shaddai counts shares.</span>
+      </h1>
+      <div class="row in" style="--i: 2; gap: 20px">
+        <span class="pill">Next · Part 2: live walkthrough</span>
+        <span class="pill mono">github.com/TeevincsCrypt/shaddai</span>
+      </div>
+    </section>
+
+    <div class="chrome" id="chrome">
+      <div class="brand"><img src="../../web/public/favicon.svg" alt="" />Shaddai</div>
+      <div><span id="part">Part 1 · Pitch</span> · <span id="count" class="mono"></span></div>
+    </div>
+    <div class="foot">
+      <span>BNB Hack: Tokenized Stocks Edition</span>
+      <span>Share-true accounting for tokenized stocks on BSC</span>
+    </div>
+
+    <script>
+      const slides = [...document.querySelectorAll('section')];
+      window.slideCount = slides.length;
+      window.slideMeta = slides.map((s) => ({ seconds: Number(s.dataset.seconds), say: s.dataset.say }));
+      let current = -1;
+      window.show = (n) => {
+        const prev = slides[current];
+        if (prev && current !== n) {
+          prev.classList.remove('on');
+          prev.classList.add('leaving');
+          setTimeout(() => prev.classList.remove('leaving'), 420);
+        }
+        slides[n]?.classList.add('on');
+        current = n;
+        document.getElementById('count').textContent =
+          n >= 0 ? `${String(n + 1).padStart(2, '0')} / ${slides.length}` : '';
+      };
+      // Open with ?slide=N to inspect one slide.
+      window.show(Number(new URLSearchParams(location.search).get('slide') ?? 0));
+    </script>
+  </body>
+</html>
